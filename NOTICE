@@ -1,0 +1,36 @@
+Threat Model Library
+Copyright (c) 2026 Jack Nelson
+
+The catalogue (data/) is licensed under the Creative Commons Attribution 4.0
+International License (CC BY 4.0). See LICENSE.
+
+The validator and build tooling (scripts/) are licensed under the MIT License.
+See LICENSE-CODE.
+
+--------------------------------------------------------------------------------
+Third-party attribution
+--------------------------------------------------------------------------------
+
+MITRE ATT&CK®
+
+  The threat definitions in data/threats/common-threats.json reference technique
+  identifiers, names and tactics from the MITRE ATT&CK® knowledge base.
+
+  © 2026 The MITRE Corporation. This work is reproduced and distributed with the
+  permission of The MITRE Corporation.
+
+  ATT&CK® is a registered trademark of The MITRE Corporation.
+  https://attack.mitre.org
+
+--------------------------------------------------------------------------------
+Attributing this catalogue
+--------------------------------------------------------------------------------
+
+If you redistribute the catalogue or a work derived from it, CC BY 4.0 asks that
+you credit the source, link to the licence, and note whether you made changes.
+Something like:
+
+  Threat data from Threat Model Library (https://github.com/jib1337/threat-model-library),
+  © 2026 Jack Nelson, licensed under CC BY 4.0. Modified.
+
+Carry the MITRE notice above with it.

@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check the tag matches package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
+      - name: Validate catalogue
+        run: node scripts/validate.mjs
+
+      - name: Build release bundle
+        run: node scripts/build.mjs
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist/*.tar.gz dist/CHECKSUMS.txt
+
+      # A repository's own GITHUB_TOKEN cannot reach another repository, so the
+      # redeploy is triggered with an installation token from a GitHub App that
+      # is installed on the app repository. Both DISPATCH_APP_ID (a variable)
+      # and DISPATCH_APP_PRIVATE_KEY (a secret) must be set for this to run;
+      # without them the release still publishes, it just does not redeploy.
+      - name: Resolve the app repository name
+        id: app-repo
+        if: ${{ vars.APP_REPO != '' && vars.DISPATCH_APP_ID != '' }}
+        env:
+          APP_REPO: ${{ vars.APP_REPO }}
+        run: echo "name=${APP_REPO##*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Mint an installation token for the app repository
+        id: app-token
+        if: ${{ steps.app-repo.outcome == 'success' }}
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.DISPATCH_APP_ID }}
+          private-key: ${{ secrets.DISPATCH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.app-repo.outputs.name }}
+
+      - name: Notify the threatmodelling.io app repository
+        if: ${{ steps.app-token.outputs.token != '' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api "repos/${{ vars.APP_REPO }}/dispatches" \
+            -f event_type=library-release \
+            -F "client_payload[version]=${GITHUB_REF_NAME#v}"

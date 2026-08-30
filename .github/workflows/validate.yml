@@ -1,0 +1,39 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/workflows/validate.yml'
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/workflows/validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate catalogue
+        run: node scripts/validate.mjs
+
+      - name: Build release bundle
+        run: node scripts/build.mjs

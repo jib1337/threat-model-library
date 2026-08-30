@@ -1,0 +1,11 @@
+# Build output
+dist
+
+# Dependencies
+node_modules
+
+# IDE/Other
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea

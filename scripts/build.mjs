@@ -199,10 +199,15 @@ const listPath = join(DIST, '.filelist');
 writeFileSync(listPath, staged.map(p => relative(BUNDLE, p)).join('\n') + '\n');
 
 const tarPath = join(DIST, `${pkg.name}-${version}.tar`);
+// --no-recursion is required because the file list names directories as well as
+// their contents. Without it tar walks each listed directory *and* archives the
+// files named after it, so every file lands in the archive twice — and the
+// second copy is emitted as a hardlink to itself, which bsdtar refuses to
+// extract ("Skipping hardlink pointing to itself").
 execFileSync(
   'tar',
   ['--format=ustar', '--numeric-owner', '--owner', '0', '--group', '0',
-   '-cf', tarPath, '-C', BUNDLE, '-T', listPath],
+   '--no-recursion', '-cf', tarPath, '-C', BUNDLE, '-T', listPath],
   { stdio: 'inherit' }
 );
 unlinkSync(listPath);

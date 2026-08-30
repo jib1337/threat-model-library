@@ -11,13 +11,6 @@ on:
       - 'NOTICE'
       - '.github/workflows/validate.yml'
   pull_request:
-    paths:
-      - 'data/**'
-      - 'scripts/**'
-      - 'package.json'
-      - 'LICENSE'
-      - 'NOTICE'
-      - '.github/workflows/validate.yml'
 
 permissions:
   contents: read

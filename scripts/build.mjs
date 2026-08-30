@@ -199,10 +199,11 @@ const listPath = join(DIST, '.filelist');
 writeFileSync(listPath, staged.map(p => relative(BUNDLE, p)).join('\n') + '\n');
 
 const tarPath = join(DIST, `${pkg.name}-${version}.tar`);
+
 execFileSync(
   'tar',
   ['--format=ustar', '--numeric-owner', '--owner', '0', '--group', '0',
-   '-cf', tarPath, '-C', BUNDLE, '-T', listPath],
+   '--no-recursion', '-cf', tarPath, '-C', BUNDLE, '-T', listPath],
   { stdio: 'inherit' }
 );
 unlinkSync(listPath);

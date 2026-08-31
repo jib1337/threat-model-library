@@ -160,7 +160,7 @@ The `threatContext` field records technology-specific examples of how a threat m
 **Best Practices:**
 
 1. **Be Specific**: Reference actual tools, techniques, or attack paths (e.g., "Mimikatz", "IMDS", "Pass-the-hash")
-2. **Be Concise**: Keep examples brief but informative (1-2 sentences)
+2. **Be Concise**: Keep examples brief but informative. 1-2 sentences, around 200 characters. Look at existing entries and match the same style
 3. **Be Relevant**: Only add context for threats where the technology has unique attack vectors
 4. **Use Technical Terms**: Security practitioners will understand technical terminology
 5. **Include Multiple Examples**: List several techniques separated by commas

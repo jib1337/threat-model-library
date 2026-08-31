@@ -710,6 +710,104 @@
       }
     },
     {
+      "id": "self-mcp-server",
+      "name": "MCP Server",
+      "provider": "self-hosted",
+      "category": "ai-ml",
+      "description": "Self-hosted Model Context Protocol server exposing tools, resources, and prompts to AI agents",
+      "threatIds": [
+        "prompt-injection",
+        "tool-invocation-abuse",
+        "remote-command-execution",
+        "ssrf-attack",
+        "injection-attack",
+        "unauthorized-access",
+        "misconfiguration",
+        "excessive-permissions",
+        "sensitive-data-exposure",
+        "credential-theft",
+        "supply-chain-attack",
+        "unpatched-vulnerabilities"
+      ],
+      "threatContext": {
+        "prompt-injection": "Indirect prompt injection via data returned by tools (file contents, database rows, web pages), malicious instructions embedded in resources served via resources/read",
+        "tool-invocation-abuse": "Attacker-controlled content read by one tool causes the agent to invoke other tools with attacker-chosen parameters; confused-deputy exploitation of legitimate tool access",
+        "remote-command-execution": "Shell/exec tools callable by the AI agent, command injection via unsanitized tool input parameters passed to subprocess calls",
+        "ssrf-attack": "URL-accepting tools (fetch, http_request) reaching internal services, cloud metadata endpoints (169.254.169.254), or localhost-bound admin interfaces",
+        "injection-attack": "Tool input parameters passed unsanitized to SQL queries, shell commands, or template engines; path traversal via file-operation tools (../../etc/passwd)",
+        "unauthorized-access": "Stdio transport has no authentication by default, SSE/HTTP endpoints exposed without API keys, no per-tool authorization so any client can invoke all tools",
+        "misconfiguration": "Server bound to 0.0.0.0 without TLS or auth, overly broad tool registrations exposing filesystem or shell access, permissive CORS on SSE endpoints",
+        "excessive-permissions": "Server process running with broad OS permissions, tools inheriting full filesystem and network access, no per-client restriction on invocable tools",
+        "sensitive-data-exposure": "Tools returning file contents including secrets (.env, private keys), environment variables with API keys accessible to tool code, full responses forwarded to the LLM provider",
+        "credential-theft": "API keys and tokens in environment variables or config files accessible to tool code, OAuth tokens and secrets readable via filesystem tools",
+        "supply-chain-attack": "Untrusted third-party MCP servers from npm/PyPI executing arbitrary code, dependency confusion in MCP packages, malicious tool implementations in community collections",
+        "unpatched-vulnerabilities": "Rapidly evolving MCP SDK and server implementations with limited security audit, protocol-level transport vulnerabilities, CVEs in framework dependencies"
+      },
+      "threatMitigations": {
+        "prompt-injection": [
+          "Sanitize or boundary-mark all data returned by tools before it enters the AI agent's context to prevent instruction injection",
+          "Implement output filtering on tool responses to strip content matching known injection patterns",
+          "Limit tool response sizes and truncate returned content to reduce the attack surface for embedded instructions"
+        ],
+        "tool-invocation-abuse": [
+          "Require explicit user confirmation for tools that write files, execute commands, send network requests, or perform destructive actions",
+          "Implement tool allowlists per client so each connected agent can only invoke a vetted subset of registered tools",
+          "Run the MCP server in a sandboxed environment (container, VM, seccomp profile) so abused tools have limited blast radius",
+          "Deploy an auditing proxy between the AI client and MCP server that logs and can block suspicious tool invocation sequences"
+        ],
+        "remote-command-execution": [
+          "Avoid registering shell/exec tools unless strictly required; prefer purpose-built tools with fixed command templates over general-purpose command execution",
+          "Run the MCP server process as an unprivileged user in a restricted workspace with no access to production systems",
+          "Implement command allowlists on any exec-style tool so only pre-approved commands can be executed, never arbitrary shell input"
+        ],
+        "ssrf-attack": [
+          "Validate and restrict URLs accepted by fetch/HTTP tools against an allowlist of permitted hosts and schemes",
+          "Block requests to private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), link-local (169.254.0.0/16), and localhost from tool implementations",
+          "Disable HTTP redirect following in URL-fetching tools or re-validate the destination after each redirect"
+        ],
+        "injection-attack": [
+          "Use parameterized queries and prepared statements in database tools; never interpolate tool input into SQL strings",
+          "Validate and canonicalize file paths in filesystem tools to prevent traversal; reject paths containing .. or resolving outside the allowed root",
+          "Sanitize all tool input parameters against the expected type and format before passing to downstream operations"
+        ],
+        "unauthorized-access": [
+          "Enable authentication on HTTP/SSE transports using API keys, OAuth, or mTLS; do not expose unauthenticated MCP endpoints to the network",
+          "Implement per-tool authorization so different clients receive different tool capabilities based on their identity and trust level",
+          "Restrict stdio-transport MCP servers to local invocation by the host AI client and do not proxy them over the network without adding an authentication layer"
+        ],
+        "misconfiguration": [
+          "Bind HTTP/SSE transports to 127.0.0.1 by default and expose via a reverse proxy with TLS termination and authentication when remote access is needed",
+          "Audit registered tools at startup and remove or disable any that expose capabilities beyond what the use case requires",
+          "Enforce strict CORS policies on SSE/HTTP endpoints allowing only the expected AI client origins"
+        ],
+        "excessive-permissions": [
+          "Run the MCP server under a dedicated service account with minimal filesystem, network, and process permissions using OS-level controls (systemd hardening, seccomp, AppArmor)",
+          "Scope each tool's accessible resources (filesystem paths, database schemas, network destinations) in the tool implementation rather than inheriting the server process's full privileges",
+          "Use a read-only filesystem mount for the server binary and configuration, with write access only to an explicit workspace directory"
+        ],
+        "sensitive-data-exposure": [
+          "Implement output filtering on tool responses to redact secrets, API keys, and credentials before returning them to the AI client",
+          "Restrict filesystem tools to a scoped working directory and explicitly exclude sensitive paths (.env, .ssh, credential stores) via deny lists",
+          "Audit what data tool responses expose and ensure sensitive fields are masked or omitted from the response payload"
+        ],
+        "credential-theft": [
+          "Inject credentials into the MCP server via a secret manager or environment variables with restricted read permissions rather than config files in the working directory",
+          "Ensure tool implementations cannot read the server's own environment variables or configuration; isolate secrets from the tool execution context",
+          "Rotate API keys and tokens used by the MCP server on a defined schedule and revoke immediately if tool abuse is detected"
+        ],
+        "supply-chain-attack": [
+          "Vet third-party MCP servers before deployment; review tool registrations and code for unexpected capabilities such as shell access or network exfiltration",
+          "Pin MCP server packages and their dependencies by version and hash; run npm audit, pip audit, or equivalent on every update",
+          "Build MCP server containers from minimal base images with a locked dependency manifest and scan for vulnerabilities before deployment"
+        ],
+        "unpatched-vulnerabilities": [
+          "Subscribe to security advisories for the MCP SDK, server framework, and transport libraries and patch within an agreed SLA",
+          "Run automated dependency scanning (Dependabot, Renovate, Snyk) against the MCP server repository with CI-gated merges",
+          "Isolate the MCP server in a sandboxed runtime (container with read-only rootfs, dropped capabilities) to limit the impact of unpatched CVEs"
+        ]
+      }
+    },
+    {
       "id": "self-postgresql",
       "name": "PostgreSQL",
       "provider": "self-hosted",

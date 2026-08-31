@@ -41,11 +41,6 @@ jobs:
             --generate-notes \
             dist/*.tar.gz dist/CHECKSUMS.txt
 
-      # A repository's own GITHUB_TOKEN cannot reach another repository, so the
-      # redeploy is triggered with an installation token from a GitHub App that
-      # is installed on the app repository. Both DISPATCH_APP_ID (a variable)
-      # and DISPATCH_APP_PRIVATE_KEY (a secret) must be set for this to run;
-      # without them the release still publishes, it just does not redeploy.
       - name: Resolve the app repository name
         id: app-repo
         if: ${{ vars.APP_REPO != '' && vars.DISPATCH_APP_ID != '' }}

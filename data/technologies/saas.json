@@ -2041,6 +2041,84 @@
           "Maintain a vendor risk assessment and data-protection terms (DPA, zero-retention) with the provider"
         ]
       }
+    },
+    {
+      "id": "saas-hugging-face",
+      "name": "Hugging Face",
+      "provider": "saas",
+      "category": "ai-ml",
+      "description": "AI/ML platform hosting models, datasets, and inference APIs for machine learning workflows",
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
+      "threatIds": [
+        "supply-chain-attack",
+        "credential-theft",
+        "sensitive-data-exposure",
+        "ai-training-data-poisoning",
+        "prompt-injection",
+        "misconfiguration",
+        "account-takeover",
+        "ai-model-extraction"
+      ],
+      "threatContext": {
+        "supply-chain-attack": "Malicious models on Hugging Face Hub with backdoored weights, pickle deserialization attacks (arbitrary code execution via torch.load), trojanized model files with embedded payloads, typosquatted model repository names",
+        "credential-theft": "Hugging Face API tokens (hf_...) leaked in Jupyter notebooks, git repos, CI/CD logs, or Spaces app code; fine-grained tokens with overly broad read/write scope; legacy tokens with full account access",
+        "sensitive-data-exposure": "Proprietary data sent to Hugging Face Inference API and Inference Endpoints, private model repos accidentally set to public, PII in uploaded datasets, Spaces application logs containing user data",
+        "ai-training-data-poisoning": "Community-contributed datasets with injected malicious samples, training data manipulation via Hub dataset pull requests, poisoned fine-tuning data uploaded to organization repos",
+        "prompt-injection": "Prompt injection against LLMs served via Inference API and Inference Endpoints, indirect injection via poisoned documents retrieved by RAG pipelines using Hub-hosted datasets",
+        "misconfiguration": "Private repos accidentally toggled to public, Spaces secrets exposed in application logs, organization settings allowing unrestricted member access, Inference Endpoints deployed without authentication",
+        "account-takeover": "Credential stuffing against Hugging Face accounts, phishing targeting organization admins with access to private model repos, compromised SSO provider cascading to Hub access",
+        "ai-model-extraction": "Unauthorized download of gated or private models via stolen tokens, systematic querying of Inference Endpoints to reconstruct fine-tuned model behavior"
+      },
+      "threatMitigations": {
+        "supply-chain-attack": [
+          "Scan all downloaded models for malicious payloads using tools like ModelScan or Hugging Face's built-in malware scanning before loading",
+          "Use SafeTensors format instead of pickle-based formats (PyTorch .bin, .pt) to prevent arbitrary code execution during model loading",
+          "Pin model downloads to specific commit SHAs (revision parameter) instead of mutable branch references to prevent model replacement attacks",
+          "Verify model provenance by checking download counts, community reviews, and organization verification badges before using community models"
+        ],
+        "credential-theft": [
+          "Use fine-grained access tokens scoped to specific repositories and permissions instead of legacy tokens with full account access",
+          "Store Hugging Face tokens in a secrets manager and inject at runtime; never embed tokens in notebooks, application code, or git repos",
+          "Rotate API tokens regularly and revoke unused tokens via the Hugging Face access token settings page",
+          "Scan repositories and CI/CD pipelines for exposed hf_ tokens using automated secret detection tools"
+        ],
+        "sensitive-data-exposure": [
+          "Use Hugging Face Inference Endpoints with dedicated infrastructure rather than the shared Inference API for processing sensitive data",
+          "Configure private repositories for all proprietary models and datasets and restrict organization membership",
+          "Redact PII from datasets before uploading to the Hub using automated data anonymization pipelines",
+          "Review Spaces application configurations to ensure secrets are not exposed in logs, environment variables, or client-side code"
+        ],
+        "ai-training-data-poisoning": [
+          "Validate dataset integrity by verifying checksums and running anomaly detection before using community-contributed datasets for training",
+          "Restrict dataset repository write access to authorized contributors and require pull request reviews for all dataset modifications",
+          "Use Hugging Face dataset versioning to pin training runs to specific dataset commits and audit changes between versions",
+          "Implement data quality gates in ML pipelines that validate sample distributions before fine-tuning runs"
+        ],
+        "prompt-injection": [
+          "Implement input validation and output filtering on Inference Endpoints before and after model inference",
+          "Deploy Inference Endpoints with content moderation guardrails to detect and block prompt injection patterns",
+          "Restrict direct user access to Inference API endpoints by proxying through a backend service with request sanitization"
+        ],
+        "misconfiguration": [
+          "Audit repository visibility settings regularly and enforce private-by-default policies for organization repositories",
+          "Use Hugging Face organization roles to enforce least-privilege access and restrict admin capabilities to named administrators",
+          "Configure Spaces secrets through the Hugging Face Secrets Manager rather than hardcoding values in application code",
+          "Enable authentication on all Inference Endpoints and restrict access to authorized API consumers"
+        ],
+        "account-takeover": [
+          "Enable two-factor authentication for all Hugging Face accounts, especially organization owners and admins",
+          "Configure SSO integration for enterprise organizations to centralize authentication and enforce MFA policies",
+          "Monitor Hugging Face audit logs for suspicious account activity including token creation and repository visibility changes",
+          "Restrict organization admin roles to a minimal set of trusted users and review membership regularly"
+        ],
+        "ai-model-extraction": [
+          "Use gated model access to require identity verification and approval before granting download access to sensitive models",
+          "Monitor Inference Endpoint access logs for systematic querying patterns indicating model extraction attempts",
+          "Implement rate limiting on Inference Endpoints to throttle high-volume inference requests from single consumers"
+        ]
+      }
     }
   ]
 }

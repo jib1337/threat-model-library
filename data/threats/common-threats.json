@@ -1295,6 +1295,60 @@
       ]
     },
     {
+      "id": "ai-vector-store-poisoning",
+      "name": "RAG and Vector Store Poisoning",
+      "description": "Attacker injects crafted documents or embeddings into a retrieval corpus so they are returned as context to an AI model, steering its output, planting indirect prompt injections, or surfacing content the requesting user is not entitled to see",
+      "severity": "high",
+      "stride": [
+        "tampering",
+        "information-disclosure",
+        "elevation-of-privilege"
+      ],
+      "mitreTechniques": [
+        {
+          "id": "T1565.001",
+          "name": "Stored Data Manipulation",
+          "tactic": "Impact"
+        },
+        {
+          "id": "T1213",
+          "name": "Data from Information Repositories",
+          "tactic": "Collection"
+        }
+      ],
+      "controls": [
+        {
+          "id": "ctrl-ragpoison-1",
+          "description": "Validate, scan and normalise every document before ingestion, stripping instruction-like content and hidden text from HTML, PDF and Office sources"
+        },
+        {
+          "id": "ctrl-ragpoison-2",
+          "description": "Restrict write access to the vector index and its ingestion pipeline to a dedicated identity, separate from the identity that queries it"
+        },
+        {
+          "id": "ctrl-ragpoison-3",
+          "description": "Enforce per-user document-level authorization at retrieval time rather than filtering after the model has seen the chunks"
+        },
+        {
+          "id": "ctrl-ragpoison-4",
+          "description": "Boundary-mark retrieved chunks as untrusted data in the prompt and never merge them into system instructions"
+        },
+        {
+          "id": "ctrl-ragpoison-5",
+          "description": "Partition indexes by data sensitivity and tenant so a single poisoned corpus cannot reach every consumer"
+        },
+        {
+          "id": "ctrl-ragpoison-6",
+          "description": "Record provenance for each indexed chunk and monitor ingestion for anomalous volume, source or embedding-space clustering"
+        },
+        {
+          "id": "ctrl-ragpoison-7",
+          "description": "Validate new index versions against a retrieval regression suite before promoting them behind an alias"
+        }
+      ],
+      "isPathwayThreat": true
+    },
+    {
       "id": "ssrf-attack",
       "name": "Server-Side Request Forgery (SSRF)",
       "description": "Attacker tricks server into making requests to internal resources or external systems",
@@ -2298,7 +2352,7 @@
     {
       "id": "tool-invocation-abuse",
       "name": "Tool Invocation Abuse",
-      "description": "Attacker manipulates AI agent context through indirect prompt injection in data returned by tools, causing the agent to invoke other tools in unintended ways such as exfiltrating data, modifying files, or executing commands on connected systems",
+      "description": "Attacker causes an AI agent to invoke tools in unintended ways — either because attacker-controlled data returned by a tool is treated as instructions (indirect prompt injection), or because the agent holds excessive permissions and autonomy, so a single wrong decision exfiltrates data, modifies files, or executes commands on connected systems",
       "severity": "critical",
       "stride": [
         "tampering",
@@ -2337,6 +2391,14 @@
         {
           "id": "ctrl-toolabuse-5",
           "description": "Implement anomaly detection on tool invocation sequences and frequencies"
+        },
+        {
+          "id": "ctrl-toolabuse-6",
+          "description": "Grant the agent's identity only the permissions its declared tools require, and never share a service identity between a read-only tool and a state-changing one"
+        },
+        {
+          "id": "ctrl-toolabuse-7",
+          "description": "Constrain agents to a declared tool allow-list per session and reject tool calls with arguments outside the declared schema or resource scope"
         }
       ],
       "isPathwayThreat": true

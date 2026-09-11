@@ -150,6 +150,8 @@
         "prompt-injection",
         "ai-training-data-poisoning",
         "ai-model-extraction",
+        "tool-invocation-abuse",
+        "ai-vector-store-poisoning",
         "sensitive-data-exposure",
         "excessive-permissions",
         "dos-attack",
@@ -157,12 +159,14 @@
       ],
       "threatContext": {
         "prompt-injection": "Guardrail bypass via indirect injection through RAG knowledge bases, jailbreaking foundation models (Claude, Titan, Llama), multi-turn conversation manipulation to override system prompts",
-        "ai-training-data-poisoning": "Malicious documents uploaded to Knowledge Bases for RAG poisoning, fine-tuning dataset manipulation via S3, compromised custom model imports",
+        "ai-training-data-poisoning": "Fine-tuning dataset manipulation via S3, compromised custom model imports, continued pre-training corpus tampering",
         "sensitive-data-exposure": "PII leakage in model responses, conversation history exposure in CloudWatch Logs, embedding vectors revealing source document content, fine-tuning data exposure in S3",
         "ai-model-extraction": "Systematic querying of custom fine-tuned models to replicate specialized behavior, embedding model output analysis to reconstruct proprietary knowledge",
         "excessive-permissions": "IAM policies with bedrock:* allowing invocation of all models, knowledge base access, and fine-tuning operations; overly broad InvokeModel permissions enabling access to all foundation models",
         "dos-attack": "Provisioned throughput exhaustion, on-demand quota consumption, large context window requests consuming model capacity",
-        "unauthorized-access": "Misconfigured resource policies or cross-account access exposing models and knowledge bases, IAM credential theft providing access to model invocation and fine-tuning operations"
+        "unauthorized-access": "Misconfigured resource policies or cross-account access exposing models and knowledge bases, IAM credential theft providing access to model invocation and fine-tuning operations",
+        "tool-invocation-abuse": "Bedrock Agents action groups invoking Lambda functions with attacker-influenced parameters after Knowledge Base retrieval injection; Converse API toolConfig chained from a read action into a write action under the agent's IAM execution role",
+        "ai-vector-store-poisoning": "Documents written into a Bedrock Knowledge Base S3 data source carrying hidden instructions that reach the model as retrieved context; unrestricted sync from a shared bucket letting any writer inject chunks; no per-user filtering on retrieved passages so retrieval crosses tenant boundaries"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -172,9 +176,7 @@
           "Configure Guardrail denied topics and word filters to prevent sensitive information disclosure"
         ],
         "ai-training-data-poisoning": [
-          "Restrict S3 bucket access for Knowledge Base data sources using least-privilege IAM policies",
           "Enable S3 versioning and object lock on fine-tuning dataset buckets to prevent unauthorized modification",
-          "Validate and scan all documents before ingestion into Knowledge Bases using automated content pipelines",
           "Use AWS CloudTrail to monitor PutObject and DeleteObject events on training data buckets"
         ],
         "ai-model-extraction": [
@@ -204,6 +206,17 @@
           "Enforce VPC endpoint policies limiting which IAM principals can invoke Bedrock APIs",
           "Enable CloudTrail logging for all Bedrock API calls and alert on InvokeModel from unexpected principals",
           "Restrict Bedrock model access using IAM condition keys such as bedrock:ModelId"
+        ],
+        "tool-invocation-abuse": [
+          "Scope each agent's IAM execution role to the specific Lambda functions and resources its action groups require",
+          "Enable Bedrock Agents user confirmation on action groups that write, delete or transact",
+          "Enable Bedrock model invocation logging and CloudTrail on agent action-group Lambdas to audit tool calls and parameters"
+        ],
+        "ai-vector-store-poisoning": [
+          "Restrict write access to Knowledge Base S3 data sources to a dedicated ingestion identity, separate from the agent's query role",
+          "Scan and normalise documents before sync to strip hidden text and instruction-like content",
+          "Apply Knowledge Base metadata filtering so retrieval is constrained to documents the requesting user may see",
+          "Enable CloudTrail on data-source buckets and alert on unexpected PutObject principals or volume"
         ]
       }
     },
@@ -490,14 +503,16 @@
         "data-exfiltration",
         "misconfiguration",
         "sensitive-data-exposure",
-        "backup-exposure"
+        "backup-exposure",
+        "ai-vector-store-poisoning"
       ],
       "threatContext": {
         "injection-attack": "Query DSL injection via _search endpoint, script injection in Painless scripts, SQL plugin query injection",
         "unauthorized-access": "Public domain endpoint exposure, fine-grained access control bypass, IAM-based access policy misconfiguration, Kibana/Dashboards anonymous access",
         "data-exfiltration": "Bulk API data extraction, snapshot to S3 repository theft, cross-cluster replication abuse, scroll API for large dataset extraction",
         "sensitive-data-exposure": "Index data exposure via public access, log data containing PII, Dashboards saved objects with sensitive queries",
-        "backup-exposure": "Automated snapshots to S3 repository accessible to unauthorized principals, manual snapshot sharing, snapshot repository policy misconfiguration"
+        "backup-exposure": "Automated snapshots to S3 repository accessible to unauthorized principals, manual snapshot sharing, snapshot repository policy misconfiguration",
+        "ai-vector-store-poisoning": "Documents written into a k-NN vector index backing a Bedrock Knowledge Base carrying hidden instructions that reach the model as retrieved context; domain endpoint write access allowing direct embedding insertion; absent per-document access control so retrieval crosses tenant boundaries"
       },
       "threatMitigations": {
         "injection-attack": [
@@ -534,6 +549,12 @@
           "Encrypt snapshot repositories using customer-managed KMS keys",
           "Use IAM policies to restrict es:ESHttpPut on _snapshot endpoints to authorized snapshot management roles",
           "Enable S3 bucket versioning and access logging on snapshot repository buckets"
+        ],
+        "ai-vector-store-poisoning": [
+          "Use separate OpenSearch roles for index ingestion and index query so a query credential cannot write embeddings",
+          "Enable fine-grained access control with document-level security on indexes backing retrieval",
+          "Keep vector indexes for different tenants or sensitivity levels in separate indexes rather than filtering after retrieval",
+          "Enable audit logging on the domain and alert on bulk index writes from unexpected principals"
         ]
       }
     },

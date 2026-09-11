@@ -483,6 +483,7 @@
       "description": "LLM proxy gateway and SDK for unified access to 100+ providers",
       "threatIds": [
         "prompt-injection",
+        "tool-invocation-abuse",
         "credential-theft",
         "sensitive-data-exposure",
         "misconfiguration",
@@ -503,7 +504,8 @@
         "supply-chain-attack": "Custom Python callback modules loaded from disk executing arbitrary code, custom_logger.py and pre/post call hooks running with proxy privileges, malicious litellm package or model_list-referenced packages from PyPI, custom guardrail modules imported from untrusted paths",
         "ssrf-attack": "User-controllable api_base in chat completion requests when custom OpenAI-compatible providers are enabled, model_list entries pointing at internal URLs, custom_llm_provider routes reaching cloud metadata endpoints (169.254.169.254), webhook callbacks fetching attacker-controlled URLs",
         "data-exfiltration": "/spend/logs and /global/spend/logs bulk-exporting prompt/response history, /key/info and /user/info enumerating organisational structure, direct PostgreSQL access to LiteLLM_SpendLogs containing full request bodies, audit log endpoints reachable from non-admin keys",
-        "unpatched-vulnerabilities": "LiteLLM CVEs in SSRF, path traversal, and SQL injection (e.g., CVE-2024-6587, CVE-2024-5564), rapid release cadence with limited security review, Python dependency vulnerabilities in the fastapi/pydantic/sqlalchemy stack"
+        "unpatched-vulnerabilities": "LiteLLM CVEs in SSRF, path traversal, and SQL injection (e.g., CVE-2024-6587, CVE-2024-5564), rapid release cadence with limited security review, Python dependency vulnerabilities in the fastapi/pydantic/sqlalchemy stack",
+        "tool-invocation-abuse": "Tool and function definitions proxied verbatim to upstream providers with no per-virtual-key tool allow-list, so a compromised or over-scoped key can register and drive high-privilege tools; guardrail callbacks inspect prompt text but not tool_call arguments"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -555,6 +557,12 @@
           "Track the BerriAI/litellm GitHub security advisories and GHSA feed and patch within an agreed SLA (e.g., 7 days for high-severity)",
           "Run the proxy in a sandboxed container (read-only rootfs, seccomp, dropped capabilities) so SSRF or RCE CVEs have a limited blast radius",
           "Subscribe to dependency scanning (Dependabot, Snyk) for the fastapi/pydantic/sqlalchemy transitive tree and rebuild images on advisory"
+        ],
+        "tool-invocation-abuse": [
+          "Constrain each virtual key to a declared tool allow-list rather than proxying arbitrary tool definitions",
+          "Extend guardrail callbacks to inspect tool_call arguments and tool results, not just prompt and completion text",
+          "Log tool_call parameters into LiteLLM_SpendLogs alongside token usage so agent actions are auditable per key",
+          "Issue separate virtual keys for agentic and non-agentic workloads so tool access is revocable independently"
         ]
       }
     },
@@ -566,6 +574,7 @@
       "description": "Self-hosted messaging gateway connecting chat platforms to AI coding agents",
       "threatIds": [
         "prompt-injection",
+        "tool-invocation-abuse",
         "remote-command-execution",
         "credential-theft",
         "unauthorized-access",
@@ -586,7 +595,8 @@
         "supply-chain-attack": "External channel plugins loaded from npm or local paths executing arbitrary Node.js in the gateway process, transitive npm dependencies on the Node 22/24 runtime compromised, sideloaded mobile node builds (APK/TestFlight) tampered with, agent integration (Pi) updates pulling unverified binaries",
         "sensitive-data-exposure": "Every chat message and agent response logged to the local session store and visible in the Control UI, attachments cached on disk in ~/.openclaw, full conversation context forwarded to the configured LLM provider, routing metadata revealing who is talking to which agent",
         "lateral-movement": "Pi agent with shell access reading the gateway user's SSH keys, cloud CLI credentials (aws/gcloud/azure), and git remotes then pivoting to discovered targets; a remote chat channel becomes a remote shell on any host where OpenClaw is installed; mobile node pairing extending reach to paired phones",
-        "unpatched-vulnerabilities": "Node.js runtime CVEs (Node 22 LTS / Node 24), channel SDK CVEs (discord.js, telegraf, matrix-js-sdk, signal-cli wrappers), Electron/macOS application vulnerabilities, mobile pairing protocol bugs, rapid release cadence with limited security review"
+        "unpatched-vulnerabilities": "Node.js runtime CVEs (Node 22 LTS / Node 24), channel SDK CVEs (discord.js, telegraf, matrix-js-sdk, signal-cli wrappers), Electron/macOS application vulnerabilities, mobile pairing protocol bugs, rapid release cadence with limited security review",
+        "tool-invocation-abuse": "A chat message from any allowed sender becomes a tool invocation on the host: file writes outside the workspace, shell execution, git push and deploy actions; multi-agent routing used to reach an agent with a wider tool surface"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -638,6 +648,12 @@
           "Subscribe to the OpenClaw release feed and patch within an agreed SLA, especially for channel SDK and Node.js advisories",
           "Run automatic dependency updates (Dependabot or Renovate) with CI tests gating merges so security fixes ship promptly",
           "Monitor Node.js, Electron, and channel SDK CVE feeds (discord.js, telegraf, matrix-js-sdk) and rebuild the gateway when relevant fixes land"
+        ],
+        "tool-invocation-abuse": [
+          "Restrict allowFrom to known senders per channel and require confirmation for shell, git and deploy tools",
+          "Run the agent as an unprivileged user confined to its workspace directory, with no ambient cloud credentials",
+          "Disable or allow-list the tool set exposed to each channel rather than granting every agent the full surface",
+          "Log every tool invocation with its arguments and alert on shell or push actions outside expected hours"
         ]
       }
     },
@@ -648,7 +664,7 @@
       "category": "ai-ml",
       "description": "ML lifecycle management platform",
       "threatIds": [
-        "ai-training-data-poisoning",
+        "ai-model-extraction",
         "unauthorized-access",
         "misconfiguration",
         "sensitive-data-exposure",
@@ -661,17 +677,12 @@
         "unauthorized-access": "Tracking server without authentication (default), model registry API exposed, artifact store credentials in mlflow.db, remote tracking URI accessible without auth",
         "misconfiguration": "Tracking server bound to 0.0.0.0, artifact storage (S3/GCS/Azure Blob) with public access, --serve-artifacts enabling arbitrary file downloads, SQLite backend file permissions",
         "sensitive-data-exposure": "Experiment parameters containing API keys/credentials, run artifacts with training data, logged metrics revealing model behavior, model signatures exposing input schemas",
-        "ai-training-data-poisoning": "Model registry poisoning via malicious model artifacts, experiment data manipulation through tracking API, artifact replacement attacks, run metadata tampering",
         "credential-theft": "Artifact store credentials (S3/GCS/Azure Blob keys) stored in MLflow backend database, tracking server environment variables containing cloud credentials, model serving endpoint credential exposure",
         "data-exfiltration": "Bulk artifact download via tracking API, experiment data extraction, model registry export of all registered models, run data enumeration via REST API",
-        "supply-chain-attack": "Malicious model registration in Model Registry for production deployment, artifact replacement attacks substituting legitimate models, experiment poisoning affecting model selection decisions"
+        "supply-chain-attack": "Malicious model registration in Model Registry for production deployment, artifact replacement attacks substituting legitimate models between staging and production, run metadata and experiment tampering influencing model selection, pickled artifacts executing code on mlflow.pyfunc.load_model",
+        "ai-model-extraction": "Unauthenticated tracking server REST API yielding signed artifact URLs via get-download-uri, bulk model artifact download through --serve-artifacts, direct reads from the S3/GCS/Azure Blob artifact root using credentials recovered from the backend store"
       },
       "threatMitigations": {
-        "ai-training-data-poisoning": [
-          "Enable MLflow Model Registry stage transitions with approval gates to prevent unauthorized model promotion",
-          "Implement artifact checksums and integrity validation before registering models for production use",
-          "Restrict write access to experiment and run data using MLflow's permission system or reverse proxy ACLs"
-        ],
         "unauthorized-access": [
           "Deploy MLflow behind a reverse proxy with authentication (OAuth2 proxy, NGINX basic auth, or OIDC)",
           "Enable MLflow's built-in authentication (--app-name basic-auth) to require credentials for API access",
@@ -705,7 +716,15 @@
         "supply-chain-attack": [
           "Enforce Model Registry approval workflows requiring review before models transition to Production stage",
           "Validate artifact checksums and model signatures before deploying registered models to serving infrastructure",
-          "Restrict Model Registry write access to authorized ML engineers and CI/CD service accounts only"
+          "Restrict Model Registry write access to authorized ML engineers and CI/CD service accounts only",
+          "Prefer non-executable serialisation formats and load untrusted artifacts in a sandboxed, credential-free environment",
+          "Restrict write access to experiment and run data using MLflow's permission system or reverse proxy ACLs"
+        ],
+        "ai-model-extraction": [
+          "Require authentication on the MLflow tracking server and place the registry behind an authenticating reverse proxy that denies anonymous artifact reads",
+          "Disable --serve-artifacts in production and let clients fetch artifacts with their own scoped cloud credentials",
+          "Scope artifact-store IAM policies per experiment so a single registry credential cannot read every registered model",
+          "Log and alert on bulk get-download-uri and list-artifacts calls from a single principal"
         ]
       }
     },

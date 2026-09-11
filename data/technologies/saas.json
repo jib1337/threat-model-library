@@ -1920,6 +1920,8 @@
       "description": "Third-party hosted LLM API (GPT models) consumed over the internet",
       "threatIds": [
         "prompt-injection",
+        "tool-invocation-abuse",
+        "ai-vector-store-poisoning",
         "sensitive-data-exposure",
         "saas-data-leakage",
         "credential-theft",
@@ -1937,7 +1939,9 @@
         "credential-theft": "OpenAI API keys (sk-...) leaked in client-side code, mobile apps, public git repos, or CI logs, project/service-account keys with organisation-wide scope reused across services, keys embedded in browser-exposed frontends",
         "excessive-permissions": "Function/tool definitions exposing high-privilege actions (database writes, shell, payment APIs) that the model can invoke autonomously, agentic tool-calling loops acting without human confirmation, overly broad function schemas",
         "injection-attack": "Insecure output handling where model responses are rendered as HTML/Markdown (stored XSS), passed to eval/exec, used to build SQL, or written to shell commands without validation (OWASP LLM02)",
-        "third-party-integration-risk": "Dependence on a single external provider for availability and confidentiality, provider-side breaches or model changes affecting the application, plugins/Actions and Assistants tools reaching internal systems"
+        "third-party-integration-risk": "Dependence on a single external provider for availability and confidentiality, provider-side breaches or model changes affecting the application, plugins/Actions and Assistants tools reaching internal systems",
+        "tool-invocation-abuse": "Function-call results and Assistants file_search output re-entering context as instructions, driving further tool calls; the model chaining a retrieval function into a state-changing one (database write, payment, email) inside an unattended agent loop",
+        "ai-vector-store-poisoning": "Assistants and Responses API vector stores populated from user-uploaded files whose text carries hidden instructions retrieved into later turns; a shared vector store serving multiple tenants so one uploader's content reaches every user's retrieval"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -1974,6 +1978,18 @@
           "Design for provider failure with timeouts, fallbacks, and graceful degradation, and monitor the OpenAI status page and API error rates",
           "Review and restrict any Assistants tools, plugins, or Actions that can reach internal systems, and scope their network egress",
           "Maintain a vendor risk assessment and contractual data-protection terms (DPA, zero-retention) for the provider"
+        ],
+        "tool-invocation-abuse": [
+          "Require human confirmation before executing any tool call that writes, transacts or sends",
+          "Validate tool-call arguments against a strict schema and reject values outside the caller's resource scope",
+          "Separate the credentials backing read tools from those backing write tools so one loop cannot escalate",
+          "Log every tool call with its arguments and alert on unexpected read-then-write sequences"
+        ],
+        "ai-vector-store-poisoning": [
+          "Create per-tenant vector stores rather than sharing one store across users",
+          "Scan and normalise uploaded files before attaching them to a vector store, stripping hidden text",
+          "Boundary-mark file_search results as untrusted data in the prompt rather than merging them into system instructions",
+          "Expire and re-validate vector store contents rather than accumulating unaudited uploads indefinitely"
         ]
       }
     },
@@ -1985,6 +2001,7 @@
       "description": "Third-party hosted LLM API (Claude models via the Messages API) consumed over the internet",
       "threatIds": [
         "prompt-injection",
+        "tool-invocation-abuse",
         "sensitive-data-exposure",
         "saas-data-leakage",
         "credential-theft",
@@ -2002,7 +2019,8 @@
         "credential-theft": "Anthropic API keys (sk-ant-...) leaked in client-side code, mobile apps, public repos, or CI logs, workspace/admin keys with broad scope reused across services, keys exposed in browser-facing frontends",
         "excessive-permissions": "tool_use definitions exposing high-privilege actions the model can invoke autonomously, agentic loops and MCP tool servers acting without human confirmation, computer-use / bash tools granting broad system access, overly broad tool input schemas",
         "injection-attack": "Insecure handling of Claude output rendered as HTML/Markdown (stored XSS), passed to eval/exec, used in SQL, or executed as shell/code without validation (OWASP LLM02), unvalidated tool_use arguments driving downstream commands",
-        "third-party-integration-risk": "Reliance on a single external provider for availability and confidentiality, provider-side breaches or model deprecations affecting the application, MCP connectors and tools reaching internal systems and data sources"
+        "third-party-integration-risk": "Reliance on a single external provider for availability and confidentiality, provider-side breaches or model deprecations affecting the application, MCP connectors and tools reaching internal systems and data sources",
+        "tool-invocation-abuse": "Injected content in a tool_result or MCP server response steering Claude into issuing further tool_use calls with attacker-chosen arguments; computer-use and bash tools turned into arbitrary action primitives; agentic loops chaining a read tool into a write or network tool without human confirmation"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -2039,6 +2057,100 @@
           "Design for provider failure with timeouts, fallbacks, and model-version pinning, and monitor Anthropic status and API error rates",
           "Review and scope any MCP connectors or tools that reach internal systems, restricting their network egress and data access",
           "Maintain a vendor risk assessment and data-protection terms (DPA, zero-retention) with the provider"
+        ],
+        "tool-invocation-abuse": [
+          "Require human confirmation before executing tool_use blocks that write, transact or reach the network",
+          "Connect only vetted MCP servers and treat every tool_result as untrusted data rather than instructions",
+          "Scope the credentials behind each tool to the minimum resource set, never sharing one identity across read and write tools",
+          "Run computer-use and bash tools in a sandboxed environment with no access to production credentials"
+        ]
+      }
+    },
+    {
+      "id": "saas-hugging-face",
+      "name": "Hugging Face",
+      "provider": "saas",
+      "category": "ai-ml",
+      "description": "AI/ML platform for hosting model repositories, datasets, inference endpoints, and Spaces applications",
+      "threatIds": [
+        "supply-chain-attack",
+        "account-takeover",
+        "credential-theft",
+        "unauthorized-access",
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "ai-training-data-poisoning",
+        "ai-model-extraction",
+        "injection-attack",
+        "data-exfiltration",
+        "prompt-injection",
+        "excessive-permissions"
+      ],
+      "threatContext": {
+        "supply-chain-attack": "Malicious model files using pickle deserialization for arbitrary code execution, backdoored model weights, typosquatted model repositories, compromised community models with hidden payloads",
+        "credential-theft": "Hugging Face API tokens (read/write/fine-grained) exposed in notebooks or public repos, organization tokens granting broad access, Spaces secrets leaked via application logs",
+        "unauthorized-access": "Private model repository access via leaked tokens, dataset gating bypass, organization member access to restricted repos without proper role assignment",
+        "sensitive-data-exposure": "PII/PHI in training datasets, model memorization leaking training data through inference, private dataset content exposed via misconfigured access controls, Spaces logs containing user inputs",
+        "misconfiguration": "Private repositories accidentally set to public, inference endpoints deployed without authentication, Spaces applications running without access controls, dataset viewer exposing sensitive content",
+        "ai-training-data-poisoning": "Poisoned fine-tuning datasets uploaded to the Hub, backdoor injection during model training via compromised dataset cards, manipulated RLHF preference data",
+        "injection-attack": "XSS and code injection in Gradio/Streamlit Spaces applications, server-side injection in custom Space backends, malicious model card HTML rendering",
+        "account-takeover": "Credential stuffing against Hugging Face accounts, SSO provider compromise, phishing targeting ML researchers with repository collaboration invites",
+        "prompt-injection": "Prompt injection against models served via Inference API or Inference Endpoints, indirect injection through model cards or dataset descriptions rendered alongside model outputs"
+      },
+      "threatMitigations": {
+        "supply-chain-attack": [
+          "Use SafeTensors format instead of pickle-based formats (PyTorch .bin, .pt) to prevent arbitrary code execution on model load",
+          "Enable Hugging Face malware and pickle scanning alerts and review security reports before downloading community models",
+          "Pin model revisions to specific commit SHAs rather than mutable branch references when loading models programmatically",
+          "Restrict model downloads to verified organizations and models that have passed Hugging Face security scans"
+        ],
+        "credential-theft": [
+          "Use fine-grained access tokens scoped to specific repositories and permissions instead of legacy full-access API tokens",
+          "Rotate Hugging Face API tokens regularly and store them in a secrets manager rather than embedding in code or notebooks",
+          "Use Hugging Face Spaces secrets management for application credentials instead of hardcoding in application code",
+          "Scan repositories and CI/CD pipelines for exposed Hugging Face tokens using automated secret detection tools"
+        ],
+        "unauthorized-access": [
+          "Configure organization-level access controls and assign repository-specific roles (read, write, admin) to team members",
+          "Enable gated access for sensitive models and datasets requiring users to accept terms before access is granted",
+          "Use Hugging Face Enterprise Hub with SSO integration to enforce centralized identity and access management",
+          "Audit organization member permissions regularly and remove access for departed or inactive members"
+        ],
+        "sensitive-data-exposure": [
+          "Scan datasets for PII before uploading to the Hub using automated data classification tools",
+          "Use dataset gating and access controls to restrict visibility of datasets containing sensitive information",
+          "Configure inference endpoints with output filtering to prevent models from leaking memorized training data",
+          "Disable the dataset viewer for repositories containing sensitive data via repository settings"
+        ],
+        "misconfiguration": [
+          "Set default repository visibility to private at the organization level and require explicit approval for public publishing",
+          "Enable authentication on all Inference Endpoints and configure network-based access restrictions for dedicated endpoints",
+          "Configure Spaces applications with Hugging Face OAuth authentication rather than allowing anonymous access",
+          "Review and restrict the dataset viewer, discussions, and community features for sensitive repositories"
+        ],
+        "ai-training-data-poisoning": [
+          "Validate training data integrity using checksums before fine-tuning and compare dataset versions against known-good baselines",
+          "Use Hugging Face dataset versioning to track changes and enable rollback to verified dataset states",
+          "Restrict write access to training datasets and fine-tuning configurations to authorized ML engineers only",
+          "Implement data quality checks and anomaly detection on fine-tuning datasets before training runs"
+        ],
+        "injection-attack": [
+          "Sanitize all user inputs in Gradio and Streamlit Spaces applications to prevent XSS and code injection",
+          "Run Spaces applications with minimal system permissions and avoid granting shell access or file system write capabilities",
+          "Review model card and dataset card content for malicious HTML or script injection before rendering",
+          "Use Hugging Face Spaces hardware restrictions and network policies to limit the application attack surface"
+        ],
+        "account-takeover": [
+          "Enable two-factor authentication for all Hugging Face accounts, especially organization owners and admins",
+          "Integrate Hugging Face Enterprise with your SSO identity provider to enforce centralized authentication policies",
+          "Monitor Hugging Face audit logs for suspicious account activity including token creation and repository access patterns",
+          "Restrict organization membership to require admin approval and limit self-service account linking"
+        ],
+        "excessive-permissions": [
+          "Use fine-grained access tokens with minimum required scopes instead of full-access tokens",
+          "Assign organization roles (member, contributor, admin) based on least-privilege principles",
+          "Audit API token permissions quarterly and revoke tokens with unnecessarily broad access",
+          "Restrict model and dataset publishing permissions to designated teams within the organization"
         ]
       }
     }

@@ -171,7 +171,7 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Unified ML platform for training and deploying models",
-      "threatIds": ["prompt-injection", "ai-training-data-poisoning", "ai-model-extraction", "misconfiguration", "unauthorized-access", "data-exfiltration", "excessive-permissions", "sensitive-data-exposure"],
+      "threatIds": ["prompt-injection", "ai-training-data-poisoning", "ai-model-extraction", "tool-invocation-abuse", "ai-vector-store-poisoning", "misconfiguration", "unauthorized-access", "data-exfiltration", "excessive-permissions", "sensitive-data-exposure"],
       "threatContext": {
         "prompt-injection": "Prompt injection against Vertex AI generative AI endpoints, PaLM/Gemini model jailbreaking via Vertex AI API, grounding configuration manipulation",
         "misconfiguration": "Workbench instances with public IP and permissive firewall rules, Pipeline service accounts with excessive permissions, Model Registry public access, Feature Store without VPC Service Controls",
@@ -180,7 +180,9 @@
         "ai-training-data-poisoning": "Malicious training data in Cloud Storage datasets, compromised data labeling via Vertex AI Data Labeling, pipeline input manipulation",
         "ai-model-extraction": "Systematic prediction endpoint querying to reconstruct model behavior, Model Registry artifact download, batch prediction output analysis for model replication",
         "excessive-permissions": "Pipeline service accounts with broad Cloud Storage and BigQuery access, Workbench instance service accounts with project-wide roles, custom training job roles with unnecessary permissions",
-        "sensitive-data-exposure": "Training datasets containing PII in Cloud Storage, model artifacts with embedded sensitive data, prediction logs containing user inputs, Feature Store values with sensitive attributes"
+        "sensitive-data-exposure": "Training datasets containing PII in Cloud Storage, model artifacts with embedded sensitive data, prediction logs containing user inputs, Feature Store values with sensitive attributes",
+        "tool-invocation-abuse": "Agent Builder and Gemini function calling driven by poisoned grounding data or datastore content; extensions and connectors executed under the Vertex service account, reaching Cloud Storage, BigQuery and internal APIs",
+        "ai-vector-store-poisoning": "Documents ingested into Vertex AI Search datastores or Vector Search indexes carrying hidden instructions that reach the model as grounding context; Cloud Storage import buckets writable outside the ingestion pipeline; grounded search results acting as an untrusted instruction channel"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -230,6 +232,18 @@
           "Configure Vertex AI prediction logging to exclude request/response bodies containing sensitive user input",
           "Encrypt model artifacts and Feature Store data with CMEK keys managed in Cloud KMS",
           "Restrict access to Vertex AI Experiments and TensorBoard instances that may contain sensitive training metrics"
+        ],
+        "tool-invocation-abuse": [
+          "Scope the Vertex AI service account to only the resources the agent's extensions and connectors require",
+          "Require confirmation before executing function calls that write, delete or transact",
+          "Validate function-call arguments against a strict schema before dispatching them to backend APIs",
+          "Enable Cloud Audit Logs on Vertex AI and downstream services to trace tool invocations to their originating session"
+        ],
+        "ai-vector-store-poisoning": [
+          "Restrict write access to datastore import buckets and Vector Search indexes to a dedicated ingestion service account",
+          "Scan and normalise documents before import to strip hidden text and instruction-like content",
+          "Boundary-mark grounding results as untrusted data rather than merging them into system instructions",
+          "Enable VPC Service Controls around datastores and alert on unexpected import principals or volume"
         ]
       }
     },
@@ -239,14 +253,15 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Google's generative AI models API",
-      "threatIds": ["prompt-injection", "ai-model-extraction", "sensitive-data-exposure", "excessive-permissions", "dos-attack", "misconfiguration"],
+      "threatIds": ["prompt-injection", "ai-model-extraction", "tool-invocation-abuse", "sensitive-data-exposure", "excessive-permissions", "dos-attack", "misconfiguration"],
       "threatContext": {
         "prompt-injection": "Multimodal injection via images/video/audio containing embedded instructions, function calling manipulation to invoke unintended tools, grounding with Google Search poisoning via SEO",
         "sensitive-data-exposure": "PII in model responses, conversation context leakage, grounded search results exposing internal URLs, file uploads containing sensitive content processed by model",
         "ai-model-extraction": "High-volume API querying to replicate model behavior, embedding endpoint systematic sampling, output token analysis for knowledge extraction",
         "excessive-permissions": "API keys without application/HTTP referrer restrictions, service accounts with aiplatform.googleapis.com access granted too broadly, project-wide Gemini access without fine-grained controls",
         "dos-attack": "Quota exhaustion via high-volume API requests, large multimodal input processing consuming compute resources, context window maximization attacks",
-        "misconfiguration": "API keys without application restrictions exposed in client-side code, missing safety filter settings, unrestricted API key usage, service account impersonation configuration issues"
+        "misconfiguration": "API keys without application restrictions exposed in client-side code, missing safety filter settings, unrestricted API key usage, service account impersonation configuration issues",
+        "tool-invocation-abuse": "Function declarations invoked with attacker-chosen arguments after multimodal or grounded-search injection; Google Search grounding results acting as an untrusted instruction channel into subsequent tool calls"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -284,6 +299,12 @@
           "Configure safety filter settings explicitly for each Gemini model call rather than relying on defaults",
           "Use Secret Manager to store API keys and rotate them regularly instead of hardcoding in applications",
           "Enable Cloud Audit Logs for AI Platform API operations to track all Gemini API usage"
+        ],
+        "tool-invocation-abuse": [
+          "Require confirmation before executing function calls that write, transact or send",
+          "Validate function-call arguments against the declared schema and reject values outside the caller's resource scope",
+          "Treat grounded search results and multimodal input as untrusted data, never as instructions",
+          "Log function calls with their arguments and alert on unexpected read-then-write sequences"
         ]
       }
     },

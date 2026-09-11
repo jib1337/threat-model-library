@@ -152,6 +152,8 @@
         "prompt-injection",
         "ai-training-data-poisoning",
         "ai-model-extraction",
+        "tool-invocation-abuse",
+        "ai-vector-store-poisoning",
         "sensitive-data-exposure",
         "excessive-permissions",
         "dos-attack",
@@ -160,13 +162,15 @@
       ],
       "threatContext": {
         "prompt-injection": "Content filter bypass via encoding/obfuscation, On Your Data feature injection through indexed documents, function calling exploitation to execute unintended actions, Assistant API file search poisoning",
-        "ai-training-data-poisoning": "Fine-tuning dataset poisoning via compromised training files, On Your Data RAG index document injection, Azure Blob Storage training data manipulation",
+        "ai-training-data-poisoning": "Fine-tuning dataset poisoning via compromised training files, Azure Blob Storage training data manipulation",
         "sensitive-data-exposure": "PII in model responses bypassing content filters, fine-tuning data exposure in storage accounts, conversation history in Azure Monitor logs, DALL-E generated images revealing training data patterns",
         "ai-model-extraction": "Systematic querying via API to reconstruct fine-tuned model behavior, embedding endpoint abuse to extract knowledge, deployment endpoint scraping",
         "excessive-permissions": "API keys granting access to all model deployments, RBAC roles (Cognitive Services User/Contributor) assigned too broadly, managed identity with access to all Azure OpenAI resources in subscription",
         "dos-attack": "Tokens-per-minute (TPM) quota exhaustion per deployment, concurrent request limit abuse, large context window requests consuming capacity, cost attack via provisioned throughput exhaustion",
         "misconfiguration": "Content filtering disabled or in asynchronous mode, model deployments without rate limits, public network access enabled without IP restrictions, data zone misconfiguration for compliance requirements",
-        "unauthorized-access": "API key exposure in client-side code or repositories, RBAC misconfiguration on Azure OpenAI resource, public network access without firewall rules, missing managed identity authentication"
+        "unauthorized-access": "API key exposure in client-side code or repositories, RBAC misconfiguration on Azure OpenAI resource, public network access without firewall rules, missing managed identity authentication",
+        "tool-invocation-abuse": "Function calling and Assistants API tools invoked with attacker-controlled arguments after injection via On Your Data documents or uploaded files; confused-deputy use of the deployment's Managed Identity to reach storage and search resources",
+        "ai-vector-store-poisoning": "On Your Data index documents seeded with hidden instructions that are retrieved into the prompt; Assistants file_search vector stores populated from user uploads; Blob Storage data sources writable by principals outside the ingestion pipeline"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -178,7 +182,6 @@
         "ai-training-data-poisoning": [
           "Validate and sanitize all fine-tuning training data before upload to Azure OpenAI",
           "Restrict write access to Azure Blob Storage containers used for training data with RBAC and Private Endpoints",
-          "Use content filtering on On Your Data indexed documents to detect malicious injections",
           "Enable versioning and audit trails on training data storage accounts"
         ],
         "ai-model-extraction": [
@@ -216,6 +219,18 @@
           "Disable public network access and enforce Private Endpoints for network isolation",
           "Enable Azure RBAC on the resource and assign Cognitive Services OpenAI User to specific principals",
           "Use Azure Key Vault to store and rotate API keys when Managed Identity is not feasible"
+        ],
+        "tool-invocation-abuse": [
+          "Scope the deployment's Managed Identity to only the storage and search resources its functions require",
+          "Require application-side confirmation before executing any function call that writes or transacts",
+          "Validate function-call arguments against a strict schema and reject values outside the expected resource scope",
+          "Enable diagnostic logging on the Azure OpenAI resource to audit tool calls and their parameters"
+        ],
+        "ai-vector-store-poisoning": [
+          "Restrict write access to On Your Data blob containers and search indexes to a dedicated ingestion identity",
+          "Scan and sanitise documents before indexing to strip hidden text and instruction-like content",
+          "Use security filters on the backing index so retrieval returns only documents the requesting user may see",
+          "Enable versioning and diagnostic logging on data-source storage accounts to detect unauthorised writes"
         ]
       }
     },
@@ -2630,6 +2645,7 @@
       "description": "AI-powered cloud search service",
       "threatIds": [
         "search-index-poisoning",
+        "ai-vector-store-poisoning",
         "sensitive-data-exposure",
         "injection-attack",
         "unauthorized-access",
@@ -2644,7 +2660,8 @@
         "unauthorized-access": "Admin API key exposure granting full index management, query API key leakage enabling search access, public network access without IP restrictions, missing managed identity authentication for indexers",
         "misconfiguration": "Public endpoint without IP restrictions, admin API key not rotated, semantic ranking exposing unintended content, indexer skillset without data masking, CORS allowing unrestricted origins",
         "data-exfiltration": "Bulk document extraction via search queries, index data export, debug sessions capturing raw indexed content, skillset output containing full document text",
-        "excessive-permissions": "Admin API keys granting full access to all indexes and operations, query keys with overly broad index access, managed identity with excessive permissions on data sources"
+        "excessive-permissions": "Admin API keys granting full access to all indexes and operations, query keys with overly broad index access, managed identity with excessive permissions on data sources",
+        "ai-vector-store-poisoning": "Vector fields populated from indexer data sources carrying hidden instructions that surface as RAG context; embedding-space collisions crafted so attacker chunks rank for unrelated queries; integrated vectorization skillsets emitting attacker-controlled text into the index"
       },
       "threatMitigations": {
         "search-index-poisoning": [
@@ -2688,6 +2705,12 @@
           "Scope query API keys to specific indexes rather than granting access to all indexes on the service",
           "Restrict managed identity permissions on indexer data sources to read-only roles (Storage Blob Data Reader, SQL DB Reader)",
           "Use Azure Policy to audit and prevent overly broad RBAC assignments on search service resources"
+        ],
+        "ai-vector-store-poisoning": [
+          "Restrict indexer data source connections to read-only credentials and keep index write access to a dedicated ingestion identity",
+          "Validate and scan documents before indexer ingestion to strip instruction-like and hidden content",
+          "Enforce document-level security trimming at query time so retrieval respects the caller's entitlements",
+          "Use index aliases to validate a rebuilt vector index against a retrieval regression suite before promoting it"
         ]
       }
     },

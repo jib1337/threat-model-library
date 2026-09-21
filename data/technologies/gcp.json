@@ -4,12 +4,112 @@
   "idPrefix": "gcp-",
   "services": [
     {
+      "id": "gcp-agent-platform",
+      "name": "Agent Platform",
+      "provider": "gcp",
+      "category": "ai-ml",
+      "description": "Enterprise agent orchestration platform for building, deploying, and managing AI agents with integrated tools and memory",
+      "threatIds": [
+        "prompt-injection",
+        "tool-invocation-abuse",
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "excessive-permissions",
+        "unauthorized-access",
+        "ai-model-extraction",
+        "data-exfiltration",
+        "third-party-integration-risk",
+        "credential-theft"
+      ],
+      "threatContext": {
+        "prompt-injection": "Indirect injection through managed MCP server responses poisoning agent context, multi-agent orchestration chains amplifying injection across coordinated agents, grounding data from enterprise sources manipulating agent behavior",
+        "tool-invocation-abuse": "Managed MCP servers with broad GCP API access exploited through crafted agent context, multi-agent coordination enabling cascading unauthorized tool calls across agent boundaries",
+        "sensitive-data-exposure": "Agent memory persisting sensitive conversation data across sessions, managed MCP server responses caching confidential enterprise data, agent orchestration logs in Cloud Logging capturing PII from tool interactions",
+        "misconfiguration": "Agent identity policies left at defaults allowing unrestricted tool access, managed MCP servers deployed with excessive data source connectivity, agent memory retention configured without expiration policies",
+        "excessive-permissions": "Agent service accounts with broad roles (roles/aiplatform.admin) instead of scoped agent-specific roles, managed MCP server connections configured with project-level access to all data sources",
+        "unauthorized-access": "Agent endpoints exposed without IAP or VPC Service Controls, cross-project agent invocation via misconfigured IAM policies, unauthorized registration of custom tools in agent configurations",
+        "ai-model-extraction": "Systematic querying of fine-tuned agents to replicate specialized enterprise knowledge, embedding extraction through agent tool interactions revealing proprietary data patterns",
+        "data-exfiltration": "Agent tool connectors orchestrating multi-step data extraction across Cloud Storage, BigQuery, and other GCP data sources in a single session, agent orchestration logs aggregating sensitive data from multiple enterprise systems",
+        "third-party-integration-risk": "Managed MCP server connections to third-party services introducing trust dependencies on external tool providers, agent workflows routing enterprise data through external endpoints without visibility into third-party security posture",
+        "credential-theft": "Agent runtime service account tokens exposed via GCP metadata server (http://metadata.google.internal), managed MCP server credentials stored in agent configurations, API keys for connected services accessible through agent environment variables"
+      },
+      "threatMitigations": {
+        "prompt-injection": [
+          "Enable Vertex AI Safety Settings on all model configurations within Agent Platform deployments",
+          "Implement input validation and content filtering on agent endpoints before context assembly",
+          "Use Agent Platform guardrails to define behavioral boundaries and restrict agent responses to approved topics",
+          "Isolate user-provided input from system instructions in agent prompt templates"
+        ],
+        "tool-invocation-abuse": [
+          "Configure per-tool IAM permissions on managed MCP servers with least-privilege service account bindings",
+          "Enable human-in-the-loop approval for agent tool calls that modify GCP resources or access sensitive data",
+          "Use Agent Platform observability to monitor tool invocation patterns and alert on anomalous sequences",
+          "Implement VPC Service Controls perimeters around managed MCP server data sources"
+        ],
+        "sensitive-data-exposure": [
+          "Configure agent memory retention policies with automatic expiration to prevent long-term sensitive data persistence",
+          "Use Cloud DLP integration to scan and redact PII from agent responses before delivery",
+          "Restrict Cloud Logging access for agent orchestration logs using IAM conditions",
+          "Encrypt agent session data at rest using customer-managed encryption keys (CMEK)"
+        ],
+        "misconfiguration": [
+          "Use Organization Policy constraints to enforce security baselines on Agent Platform deployments",
+          "Require VPC Service Controls perimeters for all Agent Platform projects handling sensitive data",
+          "Enable Security Command Center monitoring for Agent Platform resource misconfigurations"
+        ],
+        "excessive-permissions": [
+          "Create custom IAM roles scoped to specific Agent Platform actions rather than using predefined admin roles",
+          "Use separate service accounts per agent deployment with permissions limited to required tools and data sources",
+          "Audit agent service account permissions using IAM Recommender and remove unused access"
+        ],
+        "unauthorized-access": [
+          "Enforce Identity-Aware Proxy (IAP) on all Agent Platform endpoints and disable direct public access",
+          "Configure VPC Service Controls to restrict Agent Platform API access to authorized projects and networks",
+          "Enable Cloud Audit Logs for all Agent Platform API calls and alert on access from unexpected principals"
+        ],
+        "ai-model-extraction": [
+          "Implement per-user rate limiting on agent endpoints to prevent systematic knowledge extraction",
+          "Monitor agent interaction patterns in Cloud Logging for high-volume querying indicative of extraction attempts",
+          "Use Vertex AI model monitoring to detect distribution shifts from extraction-style query patterns"
+        ],
+        "data-exfiltration": [
+          "Enforce VPC Service Controls perimeters around Agent Platform and all connected data sources to prevent data movement outside trusted boundaries",
+          "Use Cloud Monitoring to track data volumes flowing through managed MCP server tool connectors and alert on anomalous extraction patterns",
+          "Scope agent service account permissions to specific Cloud Storage buckets and BigQuery datasets rather than project-level access",
+          "Enable Data Access audit logs for all services accessed by Agent Platform tool connectors to track cross-service data movement"
+        ],
+        "third-party-integration-risk": [
+          "Audit all managed MCP server connections and require security review before connecting agents to third-party tool providers",
+          "Use VPC Service Controls to restrict which external endpoints Agent Platform agents can communicate with",
+          "Monitor managed MCP server traffic patterns in Cloud Logging for unexpected data flows to third-party endpoints",
+          "Implement agent-level isolation using separate service accounts so a compromised third-party connection cannot affect other agent deployments"
+        ],
+        "credential-theft": [
+          "Use Workload Identity Federation for Agent Platform workloads to eliminate direct metadata server credential exposure",
+          "Store tool connector credentials in Secret Manager and access them via Agent Platform secret references instead of environment variables",
+          "Disable the legacy metadata server endpoint and enforce the Metadata-Flavor header requirement on Agent Platform compute",
+          "Monitor Cloud Audit Logs for service account token acquisition patterns from Agent Platform resources"
+        ]
+      }
+    },
+    {
       "id": "gcp-compute-engine",
       "name": "Compute Engine",
       "provider": "gcp",
       "category": "compute",
       "description": "Virtual machines on Google infrastructure",
-      "threatIds": ["unauthorized-access", "misconfiguration", "malware-infection", "data-exfiltration", "privilege-escalation", "dos-attack", "credential-theft", "lateral-movement", "unpatched-vulnerabilities", "ssrf-attack"],
+      "threatIds": [
+        "unauthorized-access",
+        "misconfiguration",
+        "malware-infection",
+        "data-exfiltration",
+        "privilege-escalation",
+        "dos-attack",
+        "credential-theft",
+        "lateral-movement",
+        "unpatched-vulnerabilities",
+        "ssrf-attack"
+      ],
       "threatContext": {
         "credential-theft": "Metadata server credential theft via http://metadata.google.internal, service account key exposure, access token theft",
         "lateral-movement": "VPC-based pivoting, IAP tunnel abuse, OS Login exploitation, service account impersonation",
@@ -85,7 +185,13 @@
       "provider": "gcp",
       "category": "serverless",
       "description": "Event-driven serverless compute",
-      "threatIds": ["injection-attack", "misconfiguration", "excessive-permissions", "sensitive-data-exposure", "dos-attack"],
+      "threatIds": [
+        "injection-attack",
+        "misconfiguration",
+        "excessive-permissions",
+        "sensitive-data-exposure",
+        "dos-attack"
+      ],
       "threatContext": {
         "injection-attack": "Event data injection via Pub/Sub messages, Cloud Storage triggers, or HTTP requests; command injection through unsanitized event parameters in shell commands",
         "misconfiguration": "Unauthenticated HTTP triggers (allUsers invoker), public source code in Cloud Storage, VPC connector misconfiguration exposing internal resources, excessive memory/timeout enabling abuse",
@@ -131,7 +237,12 @@
       "provider": "gcp",
       "category": "serverless",
       "description": "Fully managed container platform",
-      "threatIds": ["container-escape", "misconfiguration", "unauthorized-access", "dos-attack"],
+      "threatIds": [
+        "container-escape",
+        "misconfiguration",
+        "unauthorized-access",
+        "dos-attack"
+      ],
       "threatContext": {
         "container-escape": "Sandbox escape attempts via gVisor vulnerabilities, metadata service access for credential theft (http://metadata.google.internal), /proc filesystem access in misconfigured containers",
         "misconfiguration": "Unauthenticated service endpoints (allUsers invoker), overly permissive ingress settings, missing VPC connector for internal resources, excessive CPU/memory limits enabling cryptomining",
@@ -171,7 +282,16 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Unified ML platform for training and deploying models",
-      "threatIds": ["prompt-injection", "ai-training-data-poisoning", "ai-model-extraction", "misconfiguration", "unauthorized-access", "data-exfiltration", "excessive-permissions", "sensitive-data-exposure"],
+      "threatIds": [
+        "prompt-injection",
+        "ai-training-data-poisoning",
+        "ai-model-extraction",
+        "misconfiguration",
+        "unauthorized-access",
+        "data-exfiltration",
+        "excessive-permissions",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "prompt-injection": "Prompt injection against Vertex AI generative AI endpoints, PaLM/Gemini model jailbreaking via Vertex AI API, grounding configuration manipulation",
         "misconfiguration": "Workbench instances with public IP and permissive firewall rules, Pipeline service accounts with excessive permissions, Model Registry public access, Feature Store without VPC Service Controls",
@@ -239,7 +359,14 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Google's generative AI models API",
-      "threatIds": ["prompt-injection", "ai-model-extraction", "sensitive-data-exposure", "excessive-permissions", "dos-attack", "misconfiguration"],
+      "threatIds": [
+        "prompt-injection",
+        "ai-model-extraction",
+        "sensitive-data-exposure",
+        "excessive-permissions",
+        "dos-attack",
+        "misconfiguration"
+      ],
       "threatContext": {
         "prompt-injection": "Multimodal injection via images/video/audio containing embedded instructions, function calling manipulation to invoke unintended tools, grounding with Google Search poisoning via SEO",
         "sensitive-data-exposure": "PII in model responses, conversation context leakage, grounded search results exposing internal URLs, file uploads containing sensitive content processed by model",
@@ -293,7 +420,12 @@
       "provider": "gcp",
       "category": "orchestration",
       "description": "Serverless workflow orchestration",
-      "threatIds": ["workflow-manipulation", "misconfiguration", "excessive-permissions", "sensitive-data-exposure"],
+      "threatIds": [
+        "workflow-manipulation",
+        "misconfiguration",
+        "excessive-permissions",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "workflow-manipulation": "YAML definition tampering to modify execution flow, malicious step injection via dynamic arguments, unauthorized workflow execution through exposed Workflows API",
         "misconfiguration": "Missing error handling exposing internal state, overly permissive callback endpoints, long workflow retention exposing execution history, missing audit logging",
@@ -333,7 +465,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "Managed MySQL, PostgreSQL, SQL Server",
-      "threatIds": ["sql-injection", "unauthorized-access", "data-exfiltration", "misconfiguration", "backup-exposure"],
+      "threatIds": [
+        "sql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "backup-exposure"
+      ],
       "threatContext": {
         "sql-injection": "Engine-specific injection (MySQL, PostgreSQL, SQL Server) depending on instance type, stored procedure abuse, file read via LOAD_FILE/pg_read_file",
         "unauthorized-access": "Public IP exposure with authorized networks misconfiguration, Cloud SQL Auth Proxy bypass, IAM database authentication misconfiguration",
@@ -379,7 +517,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "NoSQL document database",
-      "threatIds": ["nosql-injection", "unauthorized-access", "data-exfiltration", "misconfiguration", "backup-exposure"],
+      "threatIds": [
+        "nosql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "backup-exposure"
+      ],
       "threatContext": {
         "nosql-injection": "Query manipulation via client-side where clauses, security rule bypass through malformed queries, batch operation abuse",
         "unauthorized-access": "Overly permissive Firestore security rules (allow read, write: if true), missing authentication checks, wildcard collection access",
@@ -424,7 +568,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "Serverless data warehouse and analytics",
-      "threatIds": ["sql-injection", "unauthorized-access", "data-exfiltration", "excessive-permissions", "sensitive-data-exposure"],
+      "threatIds": [
+        "sql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "excessive-permissions",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "sql-injection": "GoogleSQL injection via dynamic query construction, UDF (user-defined function) abuse for code execution, scripting variable injection",
         "unauthorized-access": "Dataset sharing with allAuthenticatedUsers, overly permissive IAM roles, authorized view bypass, shared dataset enumeration",
@@ -469,7 +619,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "Globally distributed relational database",
-      "threatIds": ["sql-injection", "unauthorized-access", "data-exfiltration", "misconfiguration", "backup-exposure"],
+      "threatIds": [
+        "sql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "backup-exposure"
+      ],
       "threatContext": {
         "sql-injection": "GoogleSQL injection via string concatenation in Spanner queries, parameterized query bypass, DML injection in mutations",
         "unauthorized-access": "IAM role misconfiguration for database-level access, fine-grained access control bypass, service account impersonation",
@@ -514,7 +670,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "Wide-column NoSQL database for large workloads",
-      "threatIds": ["nosql-injection", "unauthorized-access", "data-exfiltration", "misconfiguration", "backup-exposure"],
+      "threatIds": [
+        "nosql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "backup-exposure"
+      ],
       "threatContext": {
         "nosql-injection": "Row key filter manipulation, regex filter injection in ReadRows, column family/qualifier injection in read requests",
         "unauthorized-access": "IAM role misconfiguration at instance or table level, application profile abuse, missing VPC Service Controls",
@@ -559,7 +721,12 @@
       "provider": "gcp",
       "category": "database",
       "description": "Managed Redis and Memcached",
-      "threatIds": ["unauthorized-access", "cache-poisoning", "data-exfiltration", "misconfiguration"],
+      "threatIds": [
+        "unauthorized-access",
+        "cache-poisoning",
+        "data-exfiltration",
+        "misconfiguration"
+      ],
       "threatContext": {
         "unauthorized-access": "Redis AUTH password exposure, missing IAM-based authentication, VPC network allowing broad access, Memcached without SASL",
         "cache-poisoning": "Redis command injection for key manipulation, session data tampering, SLAVEOF replication to rogue instance",
@@ -598,7 +765,13 @@
       "provider": "gcp",
       "category": "database",
       "description": "PostgreSQL-compatible database for demanding workloads",
-      "threatIds": ["sql-injection", "unauthorized-access", "data-exfiltration", "misconfiguration", "backup-exposure"],
+      "threatIds": [
+        "sql-injection",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "backup-exposure"
+      ],
       "threatContext": {
         "sql-injection": "PostgreSQL-compatible injection, pg_read_file/COPY TO for file access, extension-based code execution, dollar-quoting bypass",
         "unauthorized-access": "AlloyDB Auth Proxy bypass, IAM database authentication misconfiguration, public IP exposure, pg_hba.conf equivalent misrules",
@@ -644,7 +817,13 @@
       "provider": "gcp",
       "category": "storage",
       "description": "Object storage service",
-      "threatIds": ["bucket-misconfiguration", "data-exfiltration", "unauthorized-access", "sensitive-data-exposure", "backup-exposure"],
+      "threatIds": [
+        "bucket-misconfiguration",
+        "data-exfiltration",
+        "unauthorized-access",
+        "sensitive-data-exposure",
+        "backup-exposure"
+      ],
       "threatContext": {
         "bucket-misconfiguration": "Public bucket enumeration via gsutil/gcloud, allUsers and allAuthenticatedUsers IAM bindings, uniform vs fine-grained ACL misconfigurations",
         "data-exfiltration": "Bulk object downloads via gsutil rsync, cross-project copy to attacker-controlled buckets, Storage Transfer Service abuse",
@@ -690,7 +869,13 @@
       "provider": "gcp",
       "category": "storage",
       "description": "Managed file storage for applications",
-      "threatIds": ["unauthorized-access", "data-exfiltration", "misconfiguration", "sensitive-data-exposure", "backup-exposure"],
+      "threatIds": [
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "backup-exposure"
+      ],
       "threatContext": {
         "unauthorized-access": "NFS mount from unauthorized Compute Engine instances, overly permissive VPC firewall rules exposing NFS ports, missing IP-based access controls",
         "data-exfiltration": "Bulk file copy via NFS mounts to external systems, backup snapshot access from compromised service accounts",
@@ -735,7 +920,16 @@
       "provider": "gcp",
       "category": "container",
       "description": "Google Kubernetes Engine",
-      "threatIds": ["container-escape", "misconfiguration", "unauthorized-access", "privilege-escalation", "supply-chain-attack", "credential-theft", "lateral-movement", "kubernetes-secrets-exposure"],
+      "threatIds": [
+        "container-escape",
+        "misconfiguration",
+        "unauthorized-access",
+        "privilege-escalation",
+        "supply-chain-attack",
+        "credential-theft",
+        "lateral-movement",
+        "kubernetes-secrets-exposure"
+      ],
       "threatContext": {
         "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, gVisor/Sandbox escape on GKE Autopilot, kernel exploit escalation via CAP_SYS_ADMIN",
         "misconfiguration": "Workload Identity not enabled (legacy metadata API exposed), Pod Security Standards not enforced, public GKE cluster endpoint, overly permissive RBAC bindings, missing network policies",
@@ -803,7 +997,12 @@
       "provider": "gcp",
       "category": "container",
       "description": "Container and package repository",
-      "threatIds": ["supply-chain-attack", "unauthorized-access", "misconfiguration", "sensitive-data-exposure"],
+      "threatIds": [
+        "supply-chain-attack",
+        "unauthorized-access",
+        "misconfiguration",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "supply-chain-attack": "Malicious image push via compromised service account, image tag overwrite attacks, base image poisoning in shared repositories, dependency confusion with public Docker Hub",
         "unauthorized-access": "Overly permissive IAM bindings (roles/artifactregistry.reader to allAuthenticatedUsers), cross-project repository access, service account key theft for registry access",
@@ -843,7 +1042,15 @@
       "provider": "gcp",
       "category": "cicd",
       "description": "CI/CD platform for building and deploying",
-      "threatIds": ["supply-chain-attack", "injection-attack", "misconfiguration", "credential-theft", "unauthorized-access", "excessive-permissions", "privilege-escalation"],
+      "threatIds": [
+        "supply-chain-attack",
+        "injection-attack",
+        "misconfiguration",
+        "credential-theft",
+        "unauthorized-access",
+        "excessive-permissions",
+        "privilege-escalation"
+      ],
       "threatContext": {
         "supply-chain-attack": "Malicious cloudbuild.yaml in source repos, compromised builder images from Artifact Registry, dependency confusion in build steps",
         "injection-attack": "Command injection via substitution variables, malicious build triggers from untrusted repos, script injection in build steps",
@@ -904,7 +1111,16 @@
       "provider": "gcp",
       "category": "secrets",
       "description": "Secure secrets storage",
-      "threatIds": ["credential-theft", "misconfiguration", "excessive-permissions", "audit-logging-bypass", "unauthorized-access", "sensitive-data-exposure", "data-exfiltration", "privilege-escalation"],
+      "threatIds": [
+        "credential-theft",
+        "misconfiguration",
+        "excessive-permissions",
+        "audit-logging-bypass",
+        "unauthorized-access",
+        "sensitive-data-exposure",
+        "data-exfiltration",
+        "privilege-escalation"
+      ],
       "threatContext": {
         "credential-theft": "IAM binding abuse to access secretmanager.versions.access, service account impersonation to read secrets, secret version exposure via compromised Cloud Functions, organization-wide roles granting secret access",
         "misconfiguration": "Organization-wide IAM bindings granting secret access, missing CMEK encryption, no secret rotation policy, overly broad project-level roles (Editor/Owner) granting implicit access",
@@ -972,7 +1188,16 @@
       "provider": "gcp",
       "category": "secrets",
       "description": "Cryptographic key management service",
-      "threatIds": ["credential-theft", "misconfiguration", "excessive-permissions", "unauthorized-access", "audit-logging-bypass", "sensitive-data-exposure", "data-exfiltration", "privilege-escalation"],
+      "threatIds": [
+        "credential-theft",
+        "misconfiguration",
+        "excessive-permissions",
+        "unauthorized-access",
+        "audit-logging-bypass",
+        "sensitive-data-exposure",
+        "data-exfiltration",
+        "privilege-escalation"
+      ],
       "threatContext": {
         "credential-theft": "IAM binding abuse for cloudkms.cryptoKeyVersions.useToDecrypt, service account key theft enabling decryption, key ring level permissions granting overly broad access",
         "misconfiguration": "Key ring IAM bindings too broad, missing automatic key rotation, CMEK keys without destroy protection, overly permissive crypto key IAM policies",
@@ -1040,7 +1265,12 @@
       "provider": "gcp",
       "category": "identity",
       "description": "Identity and access management",
-      "threatIds": ["privilege-escalation", "credential-theft", "excessive-permissions", "misconfiguration"],
+      "threatIds": [
+        "privilege-escalation",
+        "credential-theft",
+        "excessive-permissions",
+        "misconfiguration"
+      ],
       "threatContext": {
         "privilege-escalation": "Service account impersonation, setIamPolicy permission abuse, organization-level role grants",
         "credential-theft": "Service account key theft, exported JSON keys in repositories, metadata server token extraction",
@@ -1079,7 +1309,13 @@
       "provider": "gcp",
       "category": "identity",
       "description": "Customer identity and access management",
-      "threatIds": ["account-takeover", "token-theft", "broken-authentication", "misconfiguration", "sensitive-data-exposure"],
+      "threatIds": [
+        "account-takeover",
+        "token-theft",
+        "broken-authentication",
+        "misconfiguration",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "account-takeover": "Credential stuffing against Firebase Auth endpoints, social provider misconfiguration, weak password policies",
         "token-theft": "Firebase ID token interception, custom token abuse, session cookie theft from web apps",
@@ -1124,7 +1360,12 @@
       "provider": "gcp",
       "category": "identity",
       "description": "Enterprise identity federation for employees",
-      "threatIds": ["account-takeover", "privilege-escalation", "credential-theft", "misconfiguration"],
+      "threatIds": [
+        "account-takeover",
+        "privilege-escalation",
+        "credential-theft",
+        "misconfiguration"
+      ],
       "threatContext": {
         "account-takeover": "Compromised external IdP, phishing workforce identity pool credentials, MFA bypass via IdP vulnerabilities",
         "privilege-escalation": "Attribute-based access control bypass, workforce pool provider manipulation, IAM condition abuse",
@@ -1163,7 +1404,14 @@
       "provider": "gcp",
       "category": "networking",
       "description": "Virtual private cloud networking",
-      "threatIds": ["network-misconfiguration", "unauthorized-access", "data-exfiltration", "lateral-movement", "misconfiguration", "audit-logging-bypass"],
+      "threatIds": [
+        "network-misconfiguration",
+        "unauthorized-access",
+        "data-exfiltration",
+        "lateral-movement",
+        "misconfiguration",
+        "audit-logging-bypass"
+      ],
       "threatContext": {
         "network-misconfiguration": "Firewall rules allowing 0.0.0.0/0 ingress, overly permissive service account network tags, shared VPC host project misconfigurations, VPC peering with excessive routes exported",
         "unauthorized-access": "Missing VPC Service Controls perimeter, Private Google Access exposing resources to metadata attacks, IAP tunnel bypass via firewall misrules, Cloud NAT abuse for egress",
@@ -1217,8 +1465,16 @@
       "provider": "gcp",
       "category": "networking",
       "description": "API management platform",
-      "threatIds": ["injection-attack", "dos-attack", "broken-authentication", "sensitive-data-exposure", "misconfiguration"],
-      "connectionSecurity": { "enforcesEncryption": true },
+      "threatIds": [
+        "injection-attack",
+        "dos-attack",
+        "broken-authentication",
+        "sensitive-data-exposure",
+        "misconfiguration"
+      ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "injection-attack": "Backend service receiving unsanitized input from ESP proxy, OpenAPI spec validation bypass, gRPC message manipulation",
         "dos-attack": "Quota limit exhaustion, ESP proxy resource consumption, backend overload through rate limit bypass",
@@ -1265,8 +1521,16 @@
       "provider": "gcp",
       "category": "networking",
       "description": "Full-featured API management platform",
-      "threatIds": ["injection-attack", "dos-attack", "broken-authentication", "sensitive-data-exposure", "misconfiguration"],
-      "connectionSecurity": { "enforcesEncryption": true },
+      "threatIds": [
+        "injection-attack",
+        "dos-attack",
+        "broken-authentication",
+        "sensitive-data-exposure",
+        "misconfiguration"
+      ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "injection-attack": "JavaScript policy code injection, target endpoint URL manipulation, SOAP/XML injection through message transformation policies, JSONPath injection in ExtractVariables",
         "dos-attack": "Spike arrest policy bypass, quota exhaustion across API products, target server connection pool exhaustion, message payload attacks",
@@ -1313,8 +1577,15 @@
       "provider": "gcp",
       "category": "networking",
       "description": "Content delivery network",
-      "threatIds": ["cache-poisoning", "misconfiguration", "dos-attack", "sensitive-data-exposure"],
-      "connectionSecurity": { "enforcesEncryption": true },
+      "threatIds": [
+        "cache-poisoning",
+        "misconfiguration",
+        "dos-attack",
+        "sensitive-data-exposure"
+      ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "cache-poisoning": "Cache key manipulation via query parameters, Host header injection for cached malicious responses, cache poisoning through Vary header abuse, signed URL/cookie key compromise",
         "misconfiguration": "Caching sensitive user-specific responses, missing cache control headers allowing stale data, origin shield misconfiguration, negative caching exposing errors",
@@ -1354,8 +1625,16 @@
       "provider": "gcp",
       "category": "networking",
       "description": "Global load balancing service",
-      "threatIds": ["misconfiguration", "dos-attack", "sensitive-data-exposure", "network-misconfiguration", "unauthorized-access"],
-      "connectionSecurity": { "enforcesEncryption": true },
+      "threatIds": [
+        "misconfiguration",
+        "dos-attack",
+        "sensitive-data-exposure",
+        "network-misconfiguration",
+        "unauthorized-access"
+      ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "misconfiguration": "SSL policy allowing TLS 1.0/1.1, health check misconfiguration routing to unhealthy backends, URL map routing errors exposing internal services, missing Cloud Armor integration",
         "dos-attack": "Backend service connection exhaustion, global forwarding rule abuse for amplification, health check manipulation, WebSocket connection flooding",
@@ -1402,8 +1681,14 @@
       "provider": "gcp",
       "category": "networking",
       "description": "DDoS protection and WAF",
-      "threatIds": ["misconfiguration", "dos-attack", "audit-logging-bypass"],
-      "connectionSecurity": { "enforcesEncryption": true },
+      "threatIds": [
+        "misconfiguration",
+        "dos-attack",
+        "audit-logging-bypass"
+      ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "misconfiguration": "Security policy rules in preview mode, overly permissive IP allowlists, preconfigured WAF rules without tuning for false positives, missing rate limiting rules, default allow policy",
         "dos-attack": "Adaptive protection threshold bypass, rate limiting evasion through distributed sources, bot management bypass via header manipulation, rule priority exploitation",
@@ -1436,7 +1721,12 @@
       "provider": "gcp",
       "category": "networking",
       "description": "Scalable DNS service",
-      "threatIds": ["misconfiguration", "dos-attack", "unauthorized-access", "sensitive-data-exposure"],
+      "threatIds": [
+        "misconfiguration",
+        "dos-attack",
+        "unauthorized-access",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "misconfiguration": "Dangling DNS records enabling subdomain takeover, wildcard A records exposing internal services, missing CAA records for certificate issuance control, private zone records leaking internal hostnames",
         "dos-attack": "DNS query flooding against managed zones, DNSSEC signing overhead exploitation, DNS amplification via ANY queries",
@@ -1476,7 +1766,12 @@
       "provider": "gcp",
       "category": "messaging",
       "description": "Messaging and streaming service",
-      "threatIds": ["message-tampering", "unauthorized-access", "dos-attack", "misconfiguration"],
+      "threatIds": [
+        "message-tampering",
+        "unauthorized-access",
+        "dos-attack",
+        "misconfiguration"
+      ],
       "threatContext": {
         "message-tampering": "Message body manipulation via compromised publisher service account, ordering key abuse to disrupt message sequencing, dead-letter topic message injection",
         "unauthorized-access": "Topic/subscription IAM bindings with allUsers or allAuthenticatedUsers, cross-project publish without proper IAM conditions, push subscription endpoint hijacking",
@@ -1516,7 +1811,12 @@
       "provider": "gcp",
       "category": "messaging",
       "description": "Asynchronous task execution",
-      "threatIds": ["event-injection", "misconfiguration", "unauthorized-access", "dos-attack"],
+      "threatIds": [
+        "event-injection",
+        "misconfiguration",
+        "unauthorized-access",
+        "dos-attack"
+      ],
       "threatContext": {
         "event-injection": "Malicious task creation via compromised service account, HTTP target payload manipulation, App Engine task queue parameter injection affecting handler logic",
         "misconfiguration": "HTTP targets without OIDC/OAuth authentication, App Engine task queues with permissive dispatch rules, missing rate limiting allowing burst task creation",
@@ -1556,7 +1856,12 @@
       "provider": "gcp",
       "category": "messaging",
       "description": "Event-driven architectures service",
-      "threatIds": ["event-injection", "misconfiguration", "unauthorized-access", "excessive-permissions"],
+      "threatIds": [
+        "event-injection",
+        "misconfiguration",
+        "unauthorized-access",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "event-injection": "Cloud Audit Log event spoofing via compromised service accounts, direct Pub/Sub event injection bypassing Eventarc filters, custom channel event manipulation",
         "misconfiguration": "Triggers without proper event filtering matching unintended events, Pub/Sub channel without CMEK encryption, missing Workflow/Cloud Run authentication on destinations",
@@ -1596,7 +1901,12 @@
       "provider": "gcp",
       "category": "messaging",
       "description": "Stream and batch data processing",
-      "threatIds": ["stream-hijacking", "unauthorized-access", "data-exfiltration", "misconfiguration"],
+      "threatIds": [
+        "stream-hijacking",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration"
+      ],
       "threatContext": {
         "stream-hijacking": "Pipeline code injection via compromised template parameters, streaming insert manipulation to BigQuery sinks, Pub/Sub source credential theft for upstream interception",
         "unauthorized-access": "Worker service account with excessive permissions, Dataflow Flex Template container image tampering, job update/drain permissions allowing pipeline disruption",
@@ -1636,7 +1946,11 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Log management and analysis",
-      "threatIds": ["log-tampering", "misconfiguration", "sensitive-data-exposure"],
+      "threatIds": [
+        "log-tampering",
+        "misconfiguration",
+        "sensitive-data-exposure"
+      ],
       "threatContext": {
         "log-tampering": "Log bucket deletion, retention policy reduction via UpdateBucket, exclusion filters hiding malicious activity, log sink manipulation redirecting logs away from SIEM",
         "misconfiguration": "Missing log sinks for security-relevant logs, _Default sink routing logs to unprotected buckets, overly permissive IAM on log buckets, CMEK not enabled for sensitive logs",
@@ -1669,7 +1983,11 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Infrastructure and application monitoring",
-      "threatIds": ["misconfiguration", "sensitive-data-exposure", "audit-logging-bypass"],
+      "threatIds": [
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "audit-logging-bypass"
+      ],
       "threatContext": {
         "misconfiguration": "Alerting policies disabled or with excessive snooze periods, notification channels not configured, uptime checks missing for critical services, missing custom metrics for security events",
         "sensitive-data-exposure": "Custom metrics containing sensitive labels, dashboard annotations revealing internal data, Monitoring Query Language exposing metric patterns, shared dashboards with unauthorized viewers",
@@ -1702,7 +2020,10 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Security and risk management platform",
-      "threatIds": ["misconfiguration", "audit-logging-bypass"],
+      "threatIds": [
+        "misconfiguration",
+        "audit-logging-bypass"
+      ],
       "threatContext": {
         "misconfiguration": "Premium tier features not enabled, Web Security Scanner not configured, Event Threat Detection disabled, container threat detection not active, BigQuery export not configured for SIEM",
         "audit-logging-bypass": "Findings muted via SetMute, security marks manipulated to suppress alerts, notification configs deleted, continuous export sinks removed to prevent external alerting"
@@ -1728,7 +2049,11 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Security analytics and SIEM platform",
-      "threatIds": ["misconfiguration", "audit-logging-bypass", "log-tampering"],
+      "threatIds": [
+        "misconfiguration",
+        "audit-logging-bypass",
+        "log-tampering"
+      ],
       "threatContext": {
         "misconfiguration": "Log forwarders not configured for critical sources, YARA-L detection rules not tuned, reference lists outdated allowing IOC evasion, data feeds missing for context enrichment",
         "audit-logging-bypass": "Detection rules disabled, alert suppressions applied broadly, forwarder configurations modified to exclude security logs, SOAR playbook responses disabled",
@@ -1761,7 +2086,19 @@
       "provider": "gcp",
       "category": "compute",
       "description": "Fully managed batch processing service",
-      "threatIds": ["batch-job-tampering", "misconfiguration", "excessive-permissions", "unauthorized-access", "privilege-escalation", "dos-attack", "container-escape", "credential-theft", "supply-chain-attack", "lateral-movement", "data-exfiltration"],
+      "threatIds": [
+        "batch-job-tampering",
+        "misconfiguration",
+        "excessive-permissions",
+        "unauthorized-access",
+        "privilege-escalation",
+        "dos-attack",
+        "container-escape",
+        "credential-theft",
+        "supply-chain-attack",
+        "lateral-movement",
+        "data-exfiltration"
+      ],
       "threatContext": {
         "container-escape": "Container breakout from batch job containers to access host VM or other jobs",
         "credential-theft": "Service account credential theft from job environment, metadata server access from containers",
@@ -1844,7 +2181,13 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Intelligent data fabric for unified data management and governance",
-      "threatIds": ["data-classification-evasion", "misconfiguration", "sensitive-data-exposure", "unauthorized-access", "excessive-permissions"],
+      "threatIds": [
+        "data-classification-evasion",
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "unauthorized-access",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "data-classification-evasion": "Data encoding to evade data profiling, file format manipulation bypassing auto-discovery, asset exclusions hiding sensitive data lakes, tag templates modified to misclassify data",
         "misconfiguration": "Data quality rules not enforced, auto-discovery disabled for sensitive zones, missing data lineage tracking, lake/zone IAM not properly segmented",
@@ -1891,7 +2234,11 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Distributed tracing for application performance",
-      "threatIds": ["sensitive-data-exposure", "misconfiguration", "audit-logging-bypass"],
+      "threatIds": [
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "audit-logging-bypass"
+      ],
       "threatContext": {
         "sensitive-data-exposure": "Trace spans containing request/response bodies with PII, HTTP headers with auth tokens in span attributes, database queries with sensitive data visible in traces, custom labels exposing internal data",
         "misconfiguration": "Sampling rate too low missing security-relevant traces, trace context propagation disabled losing cross-service visibility, overly permissive IAM on trace data",
@@ -1924,7 +2271,14 @@
       "provider": "gcp",
       "category": "serverless",
       "description": "Fully managed data integration service for ETL pipelines",
-      "threatIds": ["etl-pipeline-manipulation", "credential-theft", "sensitive-data-exposure", "data-exfiltration", "misconfiguration", "excessive-permissions"],
+      "threatIds": [
+        "etl-pipeline-manipulation",
+        "credential-theft",
+        "sensitive-data-exposure",
+        "data-exfiltration",
+        "misconfiguration",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "etl-pipeline-manipulation": "Pipeline definition tampering via CDAP API, malicious plugin injection through custom plugins, Dataproc job script modification to redirect data flows",
         "credential-theft": "Service account keys stored in CDAP namespace, JDBC connection credentials in pipeline configurations, GCS bucket credentials for data sources",
@@ -1978,7 +2332,13 @@
       "provider": "gcp",
       "category": "monitoring",
       "description": "Business intelligence and data analytics platform",
-      "threatIds": ["sensitive-data-exposure", "unauthorized-access", "data-exfiltration", "misconfiguration", "excessive-permissions"],
+      "threatIds": [
+        "sensitive-data-exposure",
+        "unauthorized-access",
+        "data-exfiltration",
+        "misconfiguration",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "sensitive-data-exposure": "LookML models exposing raw PII fields, dashboard tiles revealing sensitive aggregations, Explore queries accessing unmasked data, scheduled looks emailing sensitive reports",
         "unauthorized-access": "Content access controls too permissive, embed SSO misconfiguration allowing unauthorized dashboard access, model access not restricted by role, API credentials exposed",
@@ -2025,7 +2385,13 @@
       "provider": "gcp",
       "category": "orchestration",
       "description": "Managed Apache Airflow workflow orchestration",
-      "threatIds": ["workflow-manipulation", "credential-theft", "misconfiguration", "excessive-permissions", "unauthorized-access"],
+      "threatIds": [
+        "workflow-manipulation",
+        "credential-theft",
+        "misconfiguration",
+        "excessive-permissions",
+        "unauthorized-access"
+      ],
       "threatContext": {
         "workflow-manipulation": "Malicious DAG file injection in GCS bucket, task callback URL manipulation, DAG parameter tampering to alter execution flow, XCom data poisoning between tasks",
         "credential-theft": "Airflow Connections containing database credentials, GCP service account key extraction from environment, Secrets Backend credential exposure, Fernet key compromise",
@@ -2122,7 +2488,13 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Image analysis and recognition API",
-      "threatIds": ["sensitive-data-exposure", "misconfiguration", "dos-attack", "unauthorized-access", "excessive-permissions"],
+      "threatIds": [
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "dos-attack",
+        "unauthorized-access",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "sensitive-data-exposure": "OCR extraction of sensitive documents (IDs, financial records), face detection revealing identity information, SafeSearch analysis results exposing content classification, image content logged to Cloud Logging",
         "misconfiguration": "API key without application restrictions, Vision AI API enabled without monitoring, sensitive image data processed without data residency controls",
@@ -2169,7 +2541,13 @@
       "provider": "gcp",
       "category": "ai-ml",
       "description": "Speech recognition and transcription API",
-      "threatIds": ["sensitive-data-exposure", "misconfiguration", "dos-attack", "unauthorized-access", "excessive-permissions"],
+      "threatIds": [
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "dos-attack",
+        "unauthorized-access",
+        "excessive-permissions"
+      ],
       "threatContext": {
         "sensitive-data-exposure": "Transcription of confidential conversations (PII, financial data, health information), speaker diarization revealing identity patterns, audio files persisted in Cloud Storage without encryption",
         "misconfiguration": "API key without application restrictions, Speech-to-Text API enabled without monitoring, audio data processed without data residency controls",

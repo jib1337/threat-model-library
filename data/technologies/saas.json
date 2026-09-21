@@ -586,6 +586,76 @@
       }
     },
     {
+      "id": "saas-wiz",
+      "name": "Wiz",
+      "provider": "saas",
+      "category": "saas",
+      "description": "Cloud-native application protection platform (CNAPP) with agentless scanning across multi-cloud environments",
+      "threatIds": [
+        "account-takeover",
+        "credential-theft",
+        "misconfiguration",
+        "data-exfiltration",
+        "third-party-integration-risk",
+        "excessive-permissions",
+        "sensitive-data-exposure",
+        "supply-chain-attack"
+      ],
+      "threatContext": {
+        "account-takeover": "Wiz console credential phishing granting attacker visibility into entire cloud security posture, SSO provider compromise cascading to cloud security platform, compromised admin account disabling security alerts or modifying policies to hide attacker activity",
+        "credential-theft": "Cloud connector IAM roles (AWS cross-account roles, Azure AD app registrations, GCP service account keys) providing read access to all cloud resources, Wiz API tokens enabling programmatic access to vulnerability and configuration data",
+        "misconfiguration": "Wiz scanner cloud connector roles with excessive permissions beyond required read-only access, alert rules misconfigured to suppress critical findings, integration webhooks sending sensitive vulnerability data to unsecured endpoints",
+        "data-exfiltration": "Wiz inventory data revealing complete cloud infrastructure topology and security posture, vulnerability scan results containing specific CVEs and misconfigurations used for targeted attacks, compliance report exports containing detailed security findings",
+        "third-party-integration-risk": "Wiz cloud connectors maintaining persistent read access to all cloud accounts, SIEM and ticketing integrations forwarding detailed vulnerability data to additional platforms, marketplace integrations accessing Wiz security graph data",
+        "excessive-permissions": "Cloud connector roles provisioned with broader permissions than required for scanning (e.g., full read access vs. scoped resource-specific permissions), Wiz user roles granting organization-wide access to all project security data",
+        "sensitive-data-exposure": "Cloud inventory exposing network topology, IP addresses, and service configurations, vulnerability findings revealing exploitable weaknesses across the environment, data classification scan results identifying locations of sensitive data stores",
+        "supply-chain-attack": "Wiz platform compromise granting attacker read access to all connected cloud accounts via persistent cross-account connector roles (AWS IAM, Azure AD, GCP service accounts), manipulation of security findings to suppress detection of attacker activity, exploitation of trusted vendor relationship to pivot into customer cloud environments"
+      },
+      "threatMitigations": {
+        "account-takeover": [
+          "Enforce SSO with MFA for all Wiz console access and disable local password authentication",
+          "Configure IP allowlisting for Wiz console access to restrict login to corporate networks",
+          "Monitor Wiz audit logs for admin role changes, policy modifications, and alert suppression events"
+        ],
+        "credential-theft": [
+          "Use cloud-native authentication for Wiz connectors (AWS IAM roles with external ID, Azure AD app registrations) instead of long-lived keys",
+          "Rotate Wiz API tokens regularly and scope them to specific use cases rather than organization-wide access",
+          "Monitor cloud provider audit logs for Wiz connector role usage from unexpected sources"
+        ],
+        "misconfiguration": [
+          "Audit Wiz cloud connector IAM roles against the principle of least privilege and the Wiz-provided minimum permissions template",
+          "Review Wiz alert rules and automation policies regularly to ensure critical findings are not suppressed",
+          "Configure Wiz integration webhooks to use HTTPS endpoints with authentication and restrict payload content"
+        ],
+        "data-exfiltration": [
+          "Restrict Wiz report export and API query permissions to security team members using role-based access controls",
+          "Monitor Wiz audit logs for bulk data exports, API-based inventory queries, and report generation",
+          "Use Wiz projects to scope user visibility to relevant cloud accounts rather than organization-wide access"
+        ],
+        "third-party-integration-risk": [
+          "Audit Wiz cloud connector permissions annually and remove access to cloud accounts no longer requiring scanning",
+          "Review Wiz marketplace and SIEM integrations for data sharing scope and restrict to necessary fields",
+          "Use Wiz's native RBAC to limit which integrations can access specific project data"
+        ],
+        "excessive-permissions": [
+          "Deploy Wiz cloud connectors using the vendor-provided minimum-permission IAM templates instead of broad read access",
+          "Assign Wiz users to project-scoped roles rather than organization-wide admin or viewer roles",
+          "Conduct quarterly access reviews of Wiz user roles and cloud connector permissions"
+        ],
+        "sensitive-data-exposure": [
+          "Use Wiz projects to segment cloud accounts and restrict user visibility to only the environments they manage",
+          "Configure Wiz data classification scan scope to avoid scanning data stores outside of security assessment requirements",
+          "Restrict access to Wiz security graph and inventory data using RBAC with project-level scoping"
+        ],
+        "supply-chain-attack": [
+          "Monitor cloud provider audit logs (CloudTrail, Azure Activity Log, GCP Audit Log) for Wiz connector role usage outside of expected scanning patterns",
+          "Scope Wiz cloud connector IAM roles to read-only permissions using the vendor-provided minimum-privilege templates and deny any write actions",
+          "Implement break-glass procedures to rapidly revoke all Wiz connector roles across cloud accounts in the event of a vendor compromise advisory",
+          "Maintain an independent cloud security monitoring capability that does not depend solely on Wiz for threat detection"
+        ]
+      }
+    },
+    {
       "id": "saas-github",
       "name": "GitHub",
       "provider": "saas",
@@ -1303,6 +1373,84 @@
       }
     },
     {
+      "id": "saas-retool",
+      "name": "Retool",
+      "provider": "saas",
+      "category": "saas",
+      "description": "Low-code platform for building internal tools and admin panels connected to production databases and APIs",
+      "threatIds": [
+        "injection-attack",
+        "unauthorized-access",
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "data-exfiltration",
+        "credential-theft",
+        "excessive-permissions",
+        "account-takeover",
+        "sql-injection"
+      ],
+      "threatContext": {
+        "injection-attack": "SQL injection through Retool query builders with raw SQL mode enabled, JavaScript injection in custom Retool components, server-side template injection in Retool workflows processing user inputs",
+        "unauthorized-access": "Retool apps exposing admin functionality to unauthorized users via misconfigured page permissions, SSO bypass through local Retool accounts not disabled, API endpoints generated by Retool apps accessible without authentication",
+        "misconfiguration": "Retool resource connections using production database credentials with full write access, apps deployed to production with debug mode enabled exposing query results, public sharing enabled on internal tools containing sensitive data",
+        "sensitive-data-exposure": "Production database query results displayed in Retool apps without column-level masking, audit logs capturing sensitive query parameters, Retool workflow outputs containing PII stored in workflow history",
+        "data-exfiltration": "Bulk data extraction through Retool table components with export enabled and no row limits, API queries executed through Retool with broad SELECT permissions returning full datasets, workflow outputs forwarded to external systems without data filtering",
+        "credential-theft": "Database connection strings and API keys stored in Retool resource configurations, OAuth tokens for integrated services accessible to Retool app builders, environment variables containing secrets exposed in Retool workflows",
+        "excessive-permissions": "Retool resource connections using database admin credentials shared across all apps, builders with access to all resources rather than scoped per application, Retool API keys with organization-wide access",
+        "account-takeover": "Retool admin account compromise via phishing or social engineering (as demonstrated in the 2023 Retool breach via SMS phishing), compromised SSO provider cascading to all connected production databases and APIs, MFA bypass targeting developers with access to sensitive Retool apps",
+        "sql-injection": "SQL injection through Retool's raw SQL query mode when user inputs are concatenated into queries, dynamic queries in Retool workflows processing untrusted API data, write queries (INSERT/UPDATE/DELETE) in Retool apps without prepared statement enforcement"
+      },
+      "threatMitigations": {
+        "injection-attack": [
+          "Disable raw SQL mode in Retool queries and use the GUI query builder with parameterized inputs",
+          "Enable Retool's prepared statements option on all database resource connections",
+          "Restrict custom JavaScript component usage to approved templates and review all custom code before deployment"
+        ],
+        "unauthorized-access": [
+          "Configure granular page-level and app-level permissions in Retool using groups mapped to SSO roles",
+          "Disable local Retool account creation and enforce SSO-only authentication for all users",
+          "Use Retool's audit log to monitor app access patterns and detect unauthorized usage"
+        ],
+        "misconfiguration": [
+          "Use separate Retool resource connections per environment with read-only credentials for production databases",
+          "Disable the export button and raw data access on table components displaying sensitive information",
+          "Enforce Retool's protected apps feature to prevent accidental public sharing of internal tools"
+        ],
+        "sensitive-data-exposure": [
+          "Configure column-level access controls in Retool to mask sensitive fields in query results",
+          "Restrict Retool audit log access and configure retention policies that comply with data handling requirements",
+          "Use Retool environments to prevent production data from appearing in development app previews"
+        ],
+        "data-exfiltration": [
+          "Implement row-level limits on Retool queries and disable bulk export functionality on sensitive data tables",
+          "Use database-level query result size limits and configure Retool resource query timeouts",
+          "Monitor Retool audit logs for bulk query patterns and export operations on sensitive resources"
+        ],
+        "credential-theft": [
+          "Store Retool resource credentials in a secrets manager with dynamic credential rotation rather than static passwords",
+          "Restrict Retool resource configuration access to admin roles and audit all credential changes",
+          "Use OAuth 2.0 with short-lived tokens for API integrations instead of long-lived API keys stored in Retool"
+        ],
+        "excessive-permissions": [
+          "Create dedicated database users per Retool resource with minimal required permissions instead of sharing admin credentials",
+          "Use Retool's resource access controls to restrict which apps and users can query each connected resource",
+          "Scope Retool API keys to specific environments and applications rather than organization-wide access"
+        ],
+        "account-takeover": [
+          "Enforce SSO with phishing-resistant MFA (FIDO2/WebAuthn) for all Retool users and disable local password authentication",
+          "Configure IP allowlisting in Retool to restrict console access to corporate network ranges and VPN",
+          "Monitor Retool audit logs for suspicious login events, permission changes, and resource configuration modifications",
+          "Implement session timeout policies in Retool to limit persistent sessions and force periodic re-authentication"
+        ],
+        "sql-injection": [
+          "Enforce prepared statements on all Retool database resource connections and disable raw SQL query mode for non-admin users",
+          "Use Retool's GUI query builder with parameterized inputs ({{ textInput.value }}) which auto-escapes user inputs",
+          "Create read-only database users for Retool resources that only display data, reserving write-capable users for apps that explicitly require mutations",
+          "Enable query logging on connected databases and alert on anomalous query patterns originating from Retool service accounts"
+        ]
+      }
+    },
+    {
       "id": "saas-hubspot",
       "name": "HubSpot",
       "provider": "saas",
@@ -1742,6 +1890,70 @@
           "Configure Atlas Search index definitions to exclude sensitive fields from search indexing",
           "Avoid embedding credentials in MongoDB connection strings; use secrets managers and rotate passwords regularly",
           "Use Atlas Database Access roles with field-level restrictions to limit which users can read sensitive document fields"
+        ]
+      }
+    },
+    {
+      "id": "saas-neon",
+      "name": "Neon",
+      "provider": "saas",
+      "category": "saas",
+      "description": "Serverless Postgres with branching, autoscaling, and scale-to-zero",
+      "threatIds": [
+        "sql-injection",
+        "unauthorized-access",
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "data-exfiltration",
+        "backup-exposure",
+        "credential-theft"
+      ],
+      "threatContext": {
+        "sql-injection": "SQL injection through application queries via Neon's PostgreSQL wire protocol or serverless HTTP SQL API (/sql endpoint), RPC function calls with unsanitized inputs, dynamic SQL in server-side functions on branched databases accessible to wider audiences",
+        "unauthorized-access": "Connection string exposure granting full database access, branch-level access not scoped per developer allowing access to production data copies, API key theft enabling project and branch management operations",
+        "misconfiguration": "Database branches created from production without masking sensitive data, compute endpoints left active without IP allowlisting, default roles with superuser-equivalent permissions on project databases",
+        "sensitive-data-exposure": "Production data cloned into development branches without PII masking, connection strings containing credentials logged in application environments, query results cached in Neon's serverless driver connection pooler",
+        "data-exfiltration": "Bulk data extraction via direct PostgreSQL connections to branched databases, pg_dump execution through compromised connection strings, Neon API used to create new branches with full production data copies for offline extraction",
+        "backup-exposure": "Point-in-time restore creating accessible branches from historical data, branch snapshots containing sensitive data accessible via Neon console or API",
+        "credential-theft": "Neon connection strings with embedded passwords leaked in .env files, CI/CD pipeline logs, or application error messages, Neon API keys stolen from developer machines enabling project and branch management, PostgreSQL role passwords extracted from configuration management or IaC state files"
+      },
+      "threatMitigations": {
+        "sql-injection": [
+          "Use parameterized queries and prepared statements in all application code connecting to Neon",
+          "Enable Neon's connection pooler with PgBouncer to enforce prepared statement mode",
+          "Apply PostgreSQL row-level security (RLS) policies as defense-in-depth against SQL injection"
+        ],
+        "unauthorized-access": [
+          "Store Neon connection strings in a secrets manager and never commit them to source control",
+          "Configure IP allowlisting on Neon compute endpoints to restrict database access to known application IP ranges",
+          "Use separate Neon API keys per environment with scoped permissions rather than organization-wide keys",
+          "Create dedicated PostgreSQL roles per application with minimal required privileges"
+        ],
+        "misconfiguration": [
+          "Implement data masking on branches created from production to prevent sensitive data exposure in development environments",
+          "Configure compute auto-suspend timeouts to minimize the attack window on idle database endpoints",
+          "Restrict Neon project member roles and audit API key usage through the Neon console"
+        ],
+        "sensitive-data-exposure": [
+          "Never include Neon connection strings in client-side environment variables or application bundles",
+          "Use Neon's branch-level access controls to restrict which team members can access production database branches",
+          "Enable SSL/TLS enforcement on all Neon compute endpoints and reject unencrypted connections"
+        ],
+        "data-exfiltration": [
+          "Restrict pg_dump and COPY TO capabilities by revoking superuser-equivalent roles from application database users",
+          "Monitor Neon API calls for unauthorized branch creation that could be used to clone production data",
+          "Configure Neon compute endpoint connection limits to detect and prevent bulk extraction attempts"
+        ],
+        "backup-exposure": [
+          "Restrict Neon project API access to prevent unauthorized point-in-time restore operations",
+          "Audit branch creation events in Neon to detect unexpected restore-from-backup operations",
+          "Configure branch retention policies to automatically delete old branches containing historical data"
+        ],
+        "credential-theft": [
+          "Store Neon connection strings in a secrets manager and inject at runtime rather than embedding in application config files or environment variables",
+          "Rotate Neon database passwords regularly and use separate credentials per application and environment",
+          "Scope Neon API keys to specific projects with minimum required permissions and rotate them on a scheduled basis",
+          "Scan repositories, CI/CD pipelines, and application logs for exposed Neon connection strings using automated secret detection tools"
         ]
       }
     },

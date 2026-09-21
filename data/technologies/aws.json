@@ -208,6 +208,94 @@
       }
     },
     {
+      "id": "aws-bedrock-agentcore",
+      "name": "Bedrock AgentCore",
+      "provider": "aws",
+      "category": "ai-ml",
+      "description": "Platform for building, deploying, and operating AI agents at scale",
+      "threatIds": [
+        "prompt-injection",
+        "tool-invocation-abuse",
+        "excessive-permissions",
+        "misconfiguration",
+        "sensitive-data-exposure",
+        "unauthorized-access",
+        "credential-theft",
+        "data-exfiltration",
+        "third-party-integration-risk",
+        "ai-model-extraction"
+      ],
+      "threatContext": {
+        "prompt-injection": "Indirect prompt injection via tool return values poisoning agent context, multi-step agent chains amplifying injection across tool invocations, RAG-sourced content manipulating agent behavior",
+        "tool-invocation-abuse": "Compromised tool responses directing agent to invoke destructive tools (file deletion, API mutations), MCP server spoofing returning malicious payloads, chained tool calls escalating from read to write operations",
+        "excessive-permissions": "Agent execution roles with broad IAM permissions (bedrock-agentcore:*), tool connectors configured with overly permissive resource access, session policies not scoped to individual agent tasks",
+        "misconfiguration": "Agent identity and access control policies left at defaults, session persistence storing sensitive conversation state without encryption, tool connectors exposing internal APIs without authentication",
+        "sensitive-data-exposure": "Agent session history containing PII or credentials persisted in session storage, tool responses with sensitive data logged to CloudWatch, agent memory retaining confidential information across sessions",
+        "credential-theft": "Agent runtime IAM role credentials exposed via metadata service, tool connector credentials stored in agent configuration, session tokens intercepted between agent and tool endpoints",
+        "unauthorized-access": "Cross-account agent invocation via misconfigured resource policies, unauthorized tool registration allowing rogue tools in agent workflows, missing identity verification on agent-to-agent communication",
+        "data-exfiltration": "Agent tool connectors orchestrating multi-step data extraction across S3, DynamoDB, and other data sources in a single session, agent session logs aggregating sensitive data from multiple systems into CloudWatch",
+        "third-party-integration-risk": "MCP server connections to third-party services introducing trust dependencies on external tool providers, agent workflows routing data through external endpoints without visibility into third-party security posture",
+        "ai-model-extraction": "Systematic querying of custom AgentCore agents to extract enterprise knowledge encoded in agent configurations, prompt templates, and tool invocation patterns"
+      },
+      "threatMitigations": {
+        "prompt-injection": [
+          "Enable AgentCore policy management to define guardrails that restrict agent behavior and tool invocation patterns",
+          "Treat all data returned by tool connectors as untrusted and configure input validation on agent context assembly",
+          "Use Bedrock Guardrails integration to filter prompt injection patterns in agent inputs and tool outputs",
+          "Implement agent session isolation to prevent cross-session context contamination"
+        ],
+        "tool-invocation-abuse": [
+          "Configure per-tool permission scoping in AgentCore to restrict which resources each tool connector can access",
+          "Enable human-in-the-loop approval workflows for destructive or sensitive tool invocations",
+          "Use AgentCore observability to monitor tool invocation sequences and alert on anomalous patterns",
+          "Implement tool connector authentication using IAM-based identity verification for all registered tools"
+        ],
+        "excessive-permissions": [
+          "Create separate IAM roles for agent runtime, tool connectors, and session management with least-privilege policies",
+          "Scope AgentCore session policies to specific agent tasks and restrict cross-agent resource access",
+          "Use IAM Access Analyzer to identify and remove unused AgentCore permissions from execution roles"
+        ],
+        "misconfiguration": [
+          "Enable AgentCore identity and access control policies with explicit deny for unauthenticated tool access",
+          "Configure session persistence encryption using customer-managed KMS keys",
+          "Use CloudTrail to monitor AgentCore configuration changes and alert on policy modifications"
+        ],
+        "sensitive-data-exposure": [
+          "Configure AgentCore session retention policies to automatically purge conversation history after defined TTLs",
+          "Disable verbose logging of tool responses containing sensitive data in CloudWatch Logs",
+          "Use AgentCore memory management to prevent sensitive information persistence across agent sessions",
+          "Encrypt session storage at rest using customer-managed KMS keys"
+        ],
+        "credential-theft": [
+          "Use AgentCore identity management with short-lived session credentials instead of long-lived access keys",
+          "Configure VPC endpoints for AgentCore API calls to prevent credential exposure on public networks",
+          "Rotate tool connector credentials automatically using Secrets Manager integration"
+        ],
+        "unauthorized-access": [
+          "Restrict AgentCore resource policies to specific AWS accounts and principals with explicit deny for unauthorized callers",
+          "Enforce VPC endpoint policies limiting which IAM principals can invoke AgentCore APIs",
+          "Enable CloudTrail logging for all AgentCore API calls and alert on invocations from unexpected principals"
+        ],
+        "data-exfiltration": [
+          "Configure VPC endpoints for AgentCore to restrict agent network access and prevent data egress to unauthorized destinations",
+          "Use AgentCore observability to monitor data volumes flowing through tool connectors and alert on anomalous extraction patterns",
+          "Scope tool connector data source access to specific S3 buckets and DynamoDB tables rather than broad resource wildcards",
+          "Enable CloudTrail data events for services accessed by AgentCore tool connectors to track cross-service data movement"
+        ],
+        "third-party-integration-risk": [
+          "Audit all registered MCP server connections and require security review before connecting agents to third-party tool providers",
+          "Use VPC Service Controls-equivalent network policies to restrict which external endpoints AgentCore agents can communicate with",
+          "Monitor tool connector traffic patterns for unexpected data flows to third-party MCP server endpoints",
+          "Implement agent-level isolation so a compromised third-party MCP server cannot affect other agent deployments"
+        ],
+        "ai-model-extraction": [
+          "Implement per-user rate limiting on agent invocation endpoints to prevent systematic knowledge extraction",
+          "Monitor agent interaction patterns in CloudWatch Logs for high-volume querying indicative of extraction attempts",
+          "Use Bedrock model monitoring integration to detect distribution shifts from extraction-style query patterns"
+        ]
+      }
+    },
+    {
       "id": "aws-sagemaker",
       "name": "SageMaker",
       "provider": "aws",

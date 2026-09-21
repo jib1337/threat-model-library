@@ -1378,6 +1378,71 @@
       }
     },
     {
+      "id": "azure-ai-foundry",
+      "name": "Azure AI Foundry",
+      "provider": "azure",
+      "category": "ai-ml",
+      "description": "Unified platform for building, evaluating, and deploying AI agents and applications",
+      "threatIds": [
+        "prompt-injection",
+        "tool-invocation-abuse",
+        "ai-training-data-poisoning",
+        "sensitive-data-exposure",
+        "misconfiguration",
+        "excessive-permissions",
+        "unauthorized-access"
+      ],
+      "threatContext": {
+        "prompt-injection": "Indirect injection via connected data sources in agent workflows, prompt flow manipulation through crafted grounding data, multi-agent orchestration amplifying injection across agent chains",
+        "tool-invocation-abuse": "MCP server endpoints connected to AI Foundry agents exploited to invoke Azure resource management APIs, function calling abuse through crafted model responses triggering unintended tool execution",
+        "ai-training-data-poisoning": "Fine-tuning datasets in Azure Blob Storage manipulated to introduce backdoors, evaluation datasets tampered to produce misleading safety scores, custom model imports containing trojaned weights",
+        "sensitive-data-exposure": "Prompt flow traces capturing PII in Azure Monitor, grounding data from Azure AI Search exposing indexed documents in model responses, evaluation results revealing training data patterns",
+        "misconfiguration": "Prompt flows deployed without content safety filters, agent endpoints exposed publicly without authentication, model deployments using default quota limits susceptible to exhaustion",
+        "excessive-permissions": "Managed identity with Contributor role on AI Foundry hub granting access to all connected resources, shared API keys used across multiple agent deployments, overly broad Azure RBAC roles on AI Foundry projects",
+        "unauthorized-access": "AI Foundry project endpoints accessible without Entra ID authentication, cross-project model access via misconfigured hub-level permissions, unauthorized prompt flow deployment through inherited RBAC roles"
+      },
+      "threatMitigations": {
+        "prompt-injection": [
+          "Enable Azure AI Content Safety filters on all model deployments to detect and block prompt injection patterns",
+          "Use prompt flow input validation nodes to sanitize user inputs before they reach the model",
+          "Configure Responsible AI guardrails in AI Foundry project settings for all deployed agents",
+          "Implement grounding data isolation to prevent user-supplied content from mixing with system instructions"
+        ],
+        "tool-invocation-abuse": [
+          "Scope managed identities used by AI Foundry agents to specific resource groups and actions with least-privilege RBAC",
+          "Implement human-in-the-loop review for agent tool calls that modify Azure resources or access sensitive data",
+          "Use AI Foundry observability to log and monitor all tool invocations with full parameter capture",
+          "Register MCP servers with explicit authentication and per-tool permission boundaries"
+        ],
+        "ai-training-data-poisoning": [
+          "Restrict Azure Blob Storage access for fine-tuning datasets using managed identity with read-only RBAC roles",
+          "Enable Azure Storage immutability policies on fine-tuning data containers to prevent unauthorized modification",
+          "Validate training data integrity using checksums before initiating fine-tuning jobs in AI Foundry"
+        ],
+        "sensitive-data-exposure": [
+          "Configure Azure Monitor diagnostic settings to exclude sensitive fields from prompt flow trace collection",
+          "Use Azure AI Content Safety PII detection to redact sensitive data from model responses before delivery",
+          "Restrict Azure AI Search index access to specific AI Foundry projects using RBAC and managed identities",
+          "Encrypt AI Foundry project data at rest using customer-managed keys in Azure Key Vault"
+        ],
+        "misconfiguration": [
+          "Use Azure Policy to enforce content safety filters on all AI Foundry model deployments",
+          "Require Entra ID authentication on all AI Foundry endpoints and disable API key access in production",
+          "Configure deployment quotas and rate limits per model to prevent resource exhaustion"
+        ],
+        "excessive-permissions": [
+          "Assign AI Foundry project-level RBAC roles instead of hub-level roles to limit blast radius",
+          "Use separate managed identities per agent deployment with scoped permissions to specific connected resources",
+          "Audit AI Foundry RBAC assignments using Microsoft Entra ID access reviews on a regular schedule"
+        ],
+        "unauthorized-access": [
+          "Enforce Entra ID Conditional Access policies requiring MFA and compliant devices for AI Foundry access",
+          "Configure AI Foundry network isolation using private endpoints and disable public endpoint access",
+          "Enable Azure Activity Log alerts for AI Foundry resource modifications and deployment operations"
+        ]
+      }
+    },
+    {
       "id": "azure-managed-identity",
       "name": "Managed Identities",
       "provider": "azure",

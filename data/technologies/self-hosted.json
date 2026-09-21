@@ -1184,7 +1184,9 @@
         "privilege-escalation",
         "credential-theft",
         "supply-chain-attack",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "lateral-movement",
+        "unpatched-vulnerabilities"
       ],
       "threatContext": {
         "container-escape": "Coolify manages Docker containers with root-level daemon access, container breakout from any deployed application compromises the Coolify host and all co-hosted services",
@@ -1193,7 +1195,9 @@
         "privilege-escalation": "Coolify runs as root with full Docker socket access, compromised application container leveraging Docker socket mount to gain host-level control, builder containers running with elevated privileges",
         "credential-theft": "Database passwords, API keys, and environment variables for all deployed services stored in Coolify's internal database, SSH private keys for remote server management, Docker registry credentials",
         "supply-chain-attack": "Automated git deployments pulling and building untrusted code, Docker images pulled from public registries without signature verification, build pipelines executing arbitrary Dockerfiles",
-        "sensitive-data-exposure": "Environment variables containing secrets visible in Coolify's web UI to all team members, deployment logs capturing application credentials during build steps, database credentials displayed in service configuration pages"
+        "sensitive-data-exposure": "Environment variables containing secrets visible in Coolify's web UI to all team members, deployment logs capturing application credentials during build steps, database credentials displayed in service configuration pages",
+        "lateral-movement": "Compromised application container pivoting to other co-hosted services via shared Docker network, Coolify's SSH-based multi-server management enabling lateral movement across all connected hosts, Docker network bridge allowing container-to-container communication without isolation",
+        "unpatched-vulnerabilities": "Coolify host OS and Docker engine not updated with security patches, deployed application containers running outdated base images with known CVEs, Coolify platform itself falling behind on security releases"
       },
       "threatMitigations": {
         "container-escape": [
@@ -1217,7 +1221,7 @@
           "Configure Coolify to use non-privileged builder containers for application builds"
         ],
         "credential-theft": [
-          "Back up and encrypt Coolify's internal database containing service credentials with strong encryption",
+          "Encrypt Coolify's internal SQLite database at rest using filesystem-level encryption (LUKS, dm-crypt) to protect stored service credentials",
           "Rotate SSH keys used for remote server management on a regular schedule",
           "Use Docker registry credential helpers instead of storing registry passwords in Coolify's configuration"
         ],
@@ -1230,6 +1234,18 @@
           "Use Coolify's secret variable masking to hide sensitive environment variables from the web UI",
           "Restrict Coolify team member roles to limit who can view service configurations containing credentials",
           "Configure build pipelines to use Docker secrets or build-time secret mounts instead of environment variables for sensitive values"
+        ],
+        "lateral-movement": [
+          "Configure Docker network isolation between deployed applications using separate Docker networks per project",
+          "Restrict SSH key access so each remote server uses a unique key pair rather than a shared Coolify management key",
+          "Implement firewall rules on Coolify-managed hosts to block container-to-container traffic across different applications",
+          "Monitor Docker network traffic and SSH session logs for lateral movement patterns between Coolify-managed servers"
+        ],
+        "unpatched-vulnerabilities": [
+          "Enable unattended security updates on the Coolify host OS and schedule regular Docker engine updates",
+          "Configure Coolify to rebuild application containers on a regular schedule to pick up base image security patches",
+          "Subscribe to Coolify GitHub security advisories and apply platform updates within defined SLA timelines",
+          "Run container image vulnerability scanning on all deployed applications and alert on critical CVEs"
         ]
       }
     },
@@ -1392,7 +1408,10 @@
         "unauthorized-access",
         "sensitive-data-exposure",
         "audit-logging-bypass",
-        "unpatched-vulnerabilities"
+        "unpatched-vulnerabilities",
+        "data-exfiltration",
+        "privilege-escalation",
+        "dos-attack"
       ],
       "threatContext": {
         "credential-theft": "Machine identity tokens and service tokens providing programmatic secret access, root encryption key exposure enabling decryption of all stored secrets, API key theft from client SDK configurations in application environments",
@@ -1401,7 +1420,10 @@
         "unauthorized-access": "Infisical API endpoints exposed without authentication, brute force against email/password login without rate limiting, machine identity token replay from compromised CI/CD environments",
         "sensitive-data-exposure": "Secret values displayed in Infisical web dashboard accessible to overly broad user groups, secret audit logs capturing values during read operations, webhook notifications forwarding secret metadata to external systems",
         "audit-logging-bypass": "Infisical audit log disabled on self-hosted instance, machine identity access not logged at the same level as user access, log forwarding to SIEM disrupted without alerting",
-        "unpatched-vulnerabilities": "Self-hosted Infisical instance not updated with security patches, MongoDB backend vulnerabilities, Node.js runtime CVEs in the Infisical server"
+        "unpatched-vulnerabilities": "Self-hosted Infisical instance not updated with security patches, MongoDB backend vulnerabilities, Node.js runtime CVEs in the Infisical server",
+        "data-exfiltration": "Bulk secret extraction via Infisical API using compromised machine identity tokens, systematic enumeration of projects and environments to harvest all stored secrets, export functionality in Infisical dashboard used to download secrets in bulk",
+        "privilege-escalation": "Infisical admin role abuse to access secrets across all projects, stored secrets containing higher-privilege credentials enabling pivot to more sensitive systems, machine identity tokens with project-level access escalated to organization-wide scope",
+        "dos-attack": "Infisical API endpoint exhaustion through high-volume secret read requests, resource consumption via large numbers of secret versions or dynamic secret lease requests, MongoDB backend overloaded by concurrent secret operations"
       },
       "threatMitigations": {
         "credential-theft": [
@@ -1438,6 +1460,24 @@
           "Subscribe to Infisical security advisories and apply self-hosted updates within defined SLA timelines",
           "Run Infisical in a container with regular base image updates and vulnerability scanning",
           "Keep the MongoDB backend patched and hardened following CIS benchmarks"
+        ],
+        "data-exfiltration": [
+          "Monitor Infisical audit logs for bulk secret read operations and API-based enumeration across multiple projects",
+          "Restrict Infisical secret export functionality to admin roles and require approval for bulk operations",
+          "Scope machine identity tokens to specific projects and environments to limit the blast radius of token compromise",
+          "Configure rate limiting on Infisical API secret access endpoints to detect and throttle bulk extraction attempts"
+        ],
+        "privilege-escalation": [
+          "Implement separation of duties between Infisical platform administrators and project-level secret managers",
+          "Restrict admin role assignments and use project-scoped roles for day-to-day secret management operations",
+          "Audit stored secrets for higher-privilege credentials (database admin, cloud admin) and apply additional access controls on those entries",
+          "Use Infisical's RBAC to enforce that machine identities cannot be granted broader access than their requesting service requires"
+        ],
+        "dos-attack": [
+          "Configure rate limiting on all Infisical API endpoints to prevent resource exhaustion from excessive requests",
+          "Set MongoDB connection pool limits and query timeouts to protect the backend from overload",
+          "Implement request queuing and backpressure mechanisms for dynamic secret lease operations",
+          "Monitor Infisical API response times and error rates to detect degradation from denial-of-service attempts"
         ]
       }
     },
@@ -2895,7 +2935,9 @@
         "credential-theft",
         "data-exfiltration",
         "dos-attack",
-        "unpatched-vulnerabilities"
+        "unpatched-vulnerabilities",
+        "cache-poisoning",
+        "backup-exposure"
       ],
       "threatContext": {
         "unauthorized-access": "Valkey instances exposed without AUTH configured, default bind to 0.0.0.0 allowing remote access, ACL misconfiguration granting default user full command access, cluster bus port (16379) exposed without authentication",
@@ -2903,7 +2945,9 @@
         "credential-theft": "AUTH password or ACL credentials stored in plaintext valkey.conf, replication authentication tokens intercepted on unencrypted connections, requirepass visible in CONFIG GET output",
         "data-exfiltration": "KEYS/SCAN enumeration followed by bulk GET to extract cached data, RDB snapshot files copied from disk containing all in-memory data, replication stream capture providing continuous data access, MODULE LOAD enabling custom data extraction modules",
         "dos-attack": "KEYS * on large datasets blocking the single-threaded event loop, Lua script execution consuming CPU without timeout, large key operations (SMEMBERS on million-element sets) causing latency spikes, connection exhaustion via rapid connect/disconnect",
-        "unpatched-vulnerabilities": "Valkey CVEs diverging from Redis security patches post-fork, Lua scripting engine vulnerabilities, module API security issues, replication protocol exploits"
+        "unpatched-vulnerabilities": "Valkey CVEs diverging from Redis security patches post-fork, Lua scripting engine vulnerabilities, module API security issues, replication protocol exploits",
+        "cache-poisoning": "Malicious key injection via application vulnerabilities writing crafted data to Valkey, session data manipulation through SET commands on session keys, SLAVEOF/REPLICAOF command abuse to replicate from a rogue primary and overwrite data",
+        "backup-exposure": "RDB snapshot files containing all in-memory data accessible on the filesystem, AOF append-only files exposing command history including written values, backup files copied to insecure locations without encryption"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -2937,6 +2981,18 @@
           "Subscribe to Valkey security advisories via the Linux Foundation and GitHub security notifications",
           "Apply Valkey patch releases within defined SLA and test upgrades in a staging environment before production rollout",
           "Run Valkey in a minimal container image and scan for CVEs in both Valkey and the base OS regularly"
+        ],
+        "cache-poisoning": [
+          "Rename or disable SLAVEOF and REPLICAOF commands via ACL rules to prevent rogue replication attacks",
+          "Implement application-layer input validation before writing keys to Valkey to prevent malicious data injection",
+          "Use Valkey ACLs to restrict write commands to authorized application users and deny write access to default user",
+          "Monitor Valkey MONITOR output or slow log for unexpected write patterns indicating cache manipulation"
+        ],
+        "backup-exposure": [
+          "Restrict filesystem permissions on RDB and AOF persistence directories to the Valkey process user only",
+          "Encrypt RDB snapshot files at rest using filesystem-level encryption (LUKS, dm-crypt) on the persistence volume",
+          "Disable persistence (RDB and AOF) if data durability is not required to eliminate backup exposure risk",
+          "Audit backup and replication configurations to ensure snapshot files are not copied to publicly accessible locations"
         ]
       }
     },

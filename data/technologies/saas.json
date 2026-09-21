@@ -598,7 +598,8 @@
         "data-exfiltration",
         "third-party-integration-risk",
         "excessive-permissions",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "supply-chain-attack"
       ],
       "threatContext": {
         "account-takeover": "Wiz console credential phishing granting attacker visibility into entire cloud security posture, SSO provider compromise cascading to cloud security platform, compromised admin account disabling security alerts or modifying policies to hide attacker activity",
@@ -607,7 +608,8 @@
         "data-exfiltration": "Wiz inventory data revealing complete cloud infrastructure topology and security posture, vulnerability scan results containing specific CVEs and misconfigurations used for targeted attacks, compliance report exports containing detailed security findings",
         "third-party-integration-risk": "Wiz cloud connectors maintaining persistent read access to all cloud accounts, SIEM and ticketing integrations forwarding detailed vulnerability data to additional platforms, marketplace integrations accessing Wiz security graph data",
         "excessive-permissions": "Cloud connector roles provisioned with broader permissions than required for scanning (e.g., full read access vs. scoped resource-specific permissions), Wiz user roles granting organization-wide access to all project security data",
-        "sensitive-data-exposure": "Cloud inventory exposing network topology, IP addresses, and service configurations, vulnerability findings revealing exploitable weaknesses across the environment, data classification scan results identifying locations of sensitive data stores"
+        "sensitive-data-exposure": "Cloud inventory exposing network topology, IP addresses, and service configurations, vulnerability findings revealing exploitable weaknesses across the environment, data classification scan results identifying locations of sensitive data stores",
+        "supply-chain-attack": "Wiz platform compromise granting attacker read access to all connected cloud accounts via persistent cross-account connector roles (AWS IAM, Azure AD, GCP service accounts), manipulation of security findings to suppress detection of attacker activity, exploitation of trusted vendor relationship to pivot into customer cloud environments"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -644,6 +646,12 @@
           "Use Wiz projects to segment cloud accounts and restrict user visibility to only the environments they manage",
           "Configure Wiz data classification scan scope to avoid scanning data stores outside of security assessment requirements",
           "Restrict access to Wiz security graph and inventory data using RBAC with project-level scoping"
+        ],
+        "supply-chain-attack": [
+          "Monitor cloud provider audit logs (CloudTrail, Azure Activity Log, GCP Audit Log) for Wiz connector role usage outside of expected scanning patterns",
+          "Scope Wiz cloud connector IAM roles to read-only permissions using the vendor-provided minimum-privilege templates and deny any write actions",
+          "Implement break-glass procedures to rapidly revoke all Wiz connector roles across cloud accounts in the event of a vendor compromise advisory",
+          "Maintain an independent cloud security monitoring capability that does not depend solely on Wiz for threat detection"
         ]
       }
     },
@@ -1235,61 +1243,6 @@
       }
     },
     {
-      "id": "saas-cursor",
-      "name": "Cursor",
-      "provider": "saas",
-      "category": "saas",
-      "description": "AI-native code editor with deep codebase context, agentic coding, and terminal integration",
-      "threatIds": [
-        "supply-chain-attack",
-        "sensitive-data-exposure",
-        "data-exfiltration",
-        "credential-theft",
-        "prompt-injection",
-        "misconfiguration"
-      ],
-      "threatContext": {
-        "supply-chain-attack": "VS Code extension marketplace supply chain attacks via typosquatting or compromised extensions, malicious code suggestions injected through compromised model responses, compromised MCP servers providing tool access to the editor",
-        "sensitive-data-exposure": "Repository source code sent to LLM APIs for context and completion, environment variables and .env files included in editor context, API keys and credentials visible in terminal sessions transmitted for agentic coding features",
-        "data-exfiltration": "Codebase content transmitted to third-party LLM providers for processing, terminal command output including secrets captured in conversation context, project files indexed and sent to cloud services for semantic search",
-        "credential-theft": "Credentials in .env files, config files, or terminal history included in LLM context, SSH keys and cloud credentials exposed through agentic terminal access, git credentials captured during automated commit operations",
-        "prompt-injection": "Malicious comments or strings in repository code injected into LLM context to manipulate code suggestions, crafted file contents exploiting editor's codebase indexing to influence agent behavior across the project",
-        "misconfiguration": "Privacy mode disabled allowing sensitive repositories to be processed by cloud LLMs, .cursorignore not configured to exclude sensitive files from indexing, MCP servers connected without reviewing their permissions and data access scope"
-      },
-      "threatMitigations": {
-        "supply-chain-attack": [
-          "Audit and restrict VS Code extensions installed in Cursor to a vetted allowlist maintained by the security team",
-          "Review MCP server configurations and restrict connected tools to approved, trusted servers only",
-          "Pin extension versions and verify publishers before installing marketplace extensions"
-        ],
-        "sensitive-data-exposure": [
-          "Configure .cursorignore to exclude .env files, credentials, private keys, and other sensitive files from AI indexing",
-          "Enable privacy mode for repositories containing proprietary or regulated source code",
-          "Use Cursor's workspace-level settings to restrict which files and directories are included in AI context"
-        ],
-        "data-exfiltration": [
-          "Evaluate Cursor's data retention and processing policies before onboarding repositories with sensitive code",
-          "Use network monitoring to audit outbound data transmission from Cursor to LLM API endpoints",
-          "Configure organization-level policies to restrict which repositories can be opened in AI-enabled editors"
-        ],
-        "credential-theft": [
-          "Use a credential manager or secrets vault instead of storing secrets in .env or config files accessible to the editor",
-          "Configure git credential helpers to avoid caching credentials in plaintext accessible to editor processes",
-          "Restrict terminal access in agentic mode to prevent automated commands from accessing credential stores"
-        ],
-        "prompt-injection": [
-          "Review AI-generated code suggestions carefully before accepting, especially in security-sensitive code paths",
-          "Use code review processes for all AI-generated commits to catch injection-influenced code changes",
-          "Configure content safety rules in connected LLM providers to filter injection attempts in responses"
-        ],
-        "misconfiguration": [
-          "Enforce organization-wide Cursor configuration policies for privacy mode and data handling settings",
-          "Maintain a comprehensive .cursorignore file in all repositories to prevent sensitive file indexing",
-          "Audit connected MCP servers and revoke access for servers that are unused or not security-reviewed"
-        ]
-      }
-    },
-    {
       "id": "saas-datadog",
       "name": "Datadog",
       "provider": "saas",
@@ -1432,7 +1385,9 @@
         "sensitive-data-exposure",
         "data-exfiltration",
         "credential-theft",
-        "excessive-permissions"
+        "excessive-permissions",
+        "account-takeover",
+        "sql-injection"
       ],
       "threatContext": {
         "injection-attack": "SQL injection through Retool query builders with raw SQL mode enabled, JavaScript injection in custom Retool components, server-side template injection in Retool workflows processing user inputs",
@@ -1441,7 +1396,9 @@
         "sensitive-data-exposure": "Production database query results displayed in Retool apps without column-level masking, audit logs capturing sensitive query parameters, Retool workflow outputs containing PII stored in workflow history",
         "data-exfiltration": "Bulk data extraction through Retool table components with export enabled and no row limits, API queries executed through Retool with broad SELECT permissions returning full datasets, workflow outputs forwarded to external systems without data filtering",
         "credential-theft": "Database connection strings and API keys stored in Retool resource configurations, OAuth tokens for integrated services accessible to Retool app builders, environment variables containing secrets exposed in Retool workflows",
-        "excessive-permissions": "Retool resource connections using database admin credentials shared across all apps, builders with access to all resources rather than scoped per application, Retool API keys with organization-wide access"
+        "excessive-permissions": "Retool resource connections using database admin credentials shared across all apps, builders with access to all resources rather than scoped per application, Retool API keys with organization-wide access",
+        "account-takeover": "Retool admin account compromise via phishing or social engineering (as demonstrated in the 2023 Retool breach via SMS phishing), compromised SSO provider cascading to all connected production databases and APIs, MFA bypass targeting developers with access to sensitive Retool apps",
+        "sql-injection": "SQL injection through Retool's raw SQL query mode when user inputs are concatenated into queries, dynamic queries in Retool workflows processing untrusted API data, write queries (INSERT/UPDATE/DELETE) in Retool apps without prepared statement enforcement"
       },
       "threatMitigations": {
         "injection-attack": [
@@ -1478,6 +1435,18 @@
           "Create dedicated database users per Retool resource with minimal required permissions instead of sharing admin credentials",
           "Use Retool's resource access controls to restrict which apps and users can query each connected resource",
           "Scope Retool API keys to specific environments and applications rather than organization-wide access"
+        ],
+        "account-takeover": [
+          "Enforce SSO with phishing-resistant MFA (FIDO2/WebAuthn) for all Retool users and disable local password authentication",
+          "Configure IP allowlisting in Retool to restrict console access to corporate network ranges and VPN",
+          "Monitor Retool audit logs for suspicious login events, permission changes, and resource configuration modifications",
+          "Implement session timeout policies in Retool to limit persistent sessions and force periodic re-authentication"
+        ],
+        "sql-injection": [
+          "Enforce prepared statements on all Retool database resource connections and disable raw SQL query mode for non-admin users",
+          "Use Retool's GUI query builder with parameterized inputs ({{ textInput.value }}) which auto-escapes user inputs",
+          "Create read-only database users for Retool resources that only display data, reserving write-capable users for apps that explicitly require mutations",
+          "Enable query logging on connected databases and alert on anomalous query patterns originating from Retool service accounts"
         ]
       }
     },
@@ -1936,15 +1905,17 @@
         "misconfiguration",
         "sensitive-data-exposure",
         "data-exfiltration",
-        "backup-exposure"
+        "backup-exposure",
+        "credential-theft"
       ],
       "threatContext": {
-        "sql-injection": "Direct PostgreSQL wire protocol access via connection strings, SQL injection through application queries against Neon endpoints, RPC function calls with unsanitized inputs on branched databases",
+        "sql-injection": "SQL injection through application queries via Neon's PostgreSQL wire protocol or serverless HTTP SQL API (/sql endpoint), RPC function calls with unsanitized inputs, dynamic SQL in server-side functions on branched databases accessible to wider audiences",
         "unauthorized-access": "Connection string exposure granting full database access, branch-level access not scoped per developer allowing access to production data copies, API key theft enabling project and branch management operations",
         "misconfiguration": "Database branches created from production without masking sensitive data, compute endpoints left active without IP allowlisting, default roles with superuser-equivalent permissions on project databases",
         "sensitive-data-exposure": "Production data cloned into development branches without PII masking, connection strings containing credentials logged in application environments, query results cached in Neon's serverless driver connection pooler",
         "data-exfiltration": "Bulk data extraction via direct PostgreSQL connections to branched databases, pg_dump execution through compromised connection strings, Neon API used to create new branches with full production data copies for offline extraction",
-        "backup-exposure": "Point-in-time restore creating accessible branches from historical data, branch snapshots containing sensitive data accessible via Neon console or API"
+        "backup-exposure": "Point-in-time restore creating accessible branches from historical data, branch snapshots containing sensitive data accessible via Neon console or API",
+        "credential-theft": "Neon connection strings with embedded passwords leaked in .env files, CI/CD pipeline logs, or application error messages, Neon API keys stolen from developer machines enabling project and branch management, PostgreSQL role passwords extracted from configuration management or IaC state files"
       },
       "threatMitigations": {
         "sql-injection": [
@@ -1977,6 +1948,12 @@
           "Restrict Neon project API access to prevent unauthorized point-in-time restore operations",
           "Audit branch creation events in Neon to detect unexpected restore-from-backup operations",
           "Configure branch retention policies to automatically delete old branches containing historical data"
+        ],
+        "credential-theft": [
+          "Store Neon connection strings in a secrets manager and inject at runtime rather than embedding in application config files or environment variables",
+          "Rotate Neon database passwords regularly and use separate credentials per application and environment",
+          "Scope Neon API keys to specific projects with minimum required permissions and rotate them on a scheduled basis",
+          "Scan repositories, CI/CD pipelines, and application logs for exposed Neon connection strings using automated secret detection tools"
         ]
       }
     },

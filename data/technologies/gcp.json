@@ -16,7 +16,10 @@
         "misconfiguration",
         "excessive-permissions",
         "unauthorized-access",
-        "ai-model-extraction"
+        "ai-model-extraction",
+        "data-exfiltration",
+        "third-party-integration-risk",
+        "credential-theft"
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection through managed MCP server responses poisoning agent context, multi-agent orchestration chains amplifying injection across coordinated agents, grounding data from enterprise sources manipulating agent behavior",
@@ -25,7 +28,10 @@
         "misconfiguration": "Agent identity policies left at defaults allowing unrestricted tool access, managed MCP servers deployed with excessive data source connectivity, agent memory retention configured without expiration policies",
         "excessive-permissions": "Agent service accounts with broad roles (roles/aiplatform.admin) instead of scoped agent-specific roles, managed MCP server connections configured with project-level access to all data sources",
         "unauthorized-access": "Agent endpoints exposed without IAP or VPC Service Controls, cross-project agent invocation via misconfigured IAM policies, unauthorized registration of custom tools in agent configurations",
-        "ai-model-extraction": "Systematic querying of fine-tuned agents to replicate specialized enterprise knowledge, embedding extraction through agent tool interactions revealing proprietary data patterns"
+        "ai-model-extraction": "Systematic querying of fine-tuned agents to replicate specialized enterprise knowledge, embedding extraction through agent tool interactions revealing proprietary data patterns",
+        "data-exfiltration": "Agent tool connectors orchestrating multi-step data extraction across Cloud Storage, BigQuery, and other GCP data sources in a single session, agent orchestration logs aggregating sensitive data from multiple enterprise systems",
+        "third-party-integration-risk": "Managed MCP server connections to third-party services introducing trust dependencies on external tool providers, agent workflows routing enterprise data through external endpoints without visibility into third-party security posture",
+        "credential-theft": "Agent runtime service account tokens exposed via GCP metadata server (http://metadata.google.internal), managed MCP server credentials stored in agent configurations, API keys for connected services accessible through agent environment variables"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -65,6 +71,24 @@
           "Implement per-user rate limiting on agent endpoints to prevent systematic knowledge extraction",
           "Monitor agent interaction patterns in Cloud Logging for high-volume querying indicative of extraction attempts",
           "Use Vertex AI model monitoring to detect distribution shifts from extraction-style query patterns"
+        ],
+        "data-exfiltration": [
+          "Enforce VPC Service Controls perimeters around Agent Platform and all connected data sources to prevent data movement outside trusted boundaries",
+          "Use Cloud Monitoring to track data volumes flowing through managed MCP server tool connectors and alert on anomalous extraction patterns",
+          "Scope agent service account permissions to specific Cloud Storage buckets and BigQuery datasets rather than project-level access",
+          "Enable Data Access audit logs for all services accessed by Agent Platform tool connectors to track cross-service data movement"
+        ],
+        "third-party-integration-risk": [
+          "Audit all managed MCP server connections and require security review before connecting agents to third-party tool providers",
+          "Use VPC Service Controls to restrict which external endpoints Agent Platform agents can communicate with",
+          "Monitor managed MCP server traffic patterns in Cloud Logging for unexpected data flows to third-party endpoints",
+          "Implement agent-level isolation using separate service accounts so a compromised third-party connection cannot affect other agent deployments"
+        ],
+        "credential-theft": [
+          "Use Workload Identity Federation for Agent Platform workloads to eliminate direct metadata server credential exposure",
+          "Store tool connector credentials in Secret Manager and access them via Agent Platform secret references instead of environment variables",
+          "Disable the legacy metadata server endpoint and enforce the Metadata-Flavor header requirement on Agent Platform compute",
+          "Monitor Cloud Audit Logs for service account token acquisition patterns from Agent Platform resources"
         ]
       }
     },

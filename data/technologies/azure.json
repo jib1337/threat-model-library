@@ -1390,7 +1390,11 @@
         "sensitive-data-exposure",
         "misconfiguration",
         "excessive-permissions",
-        "unauthorized-access"
+        "unauthorized-access",
+        "data-exfiltration",
+        "third-party-integration-risk",
+        "credential-theft",
+        "ai-model-extraction"
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection via connected data sources in agent workflows, prompt flow manipulation through crafted grounding data, multi-agent orchestration amplifying injection across agent chains",
@@ -1399,7 +1403,11 @@
         "sensitive-data-exposure": "Prompt flow traces capturing PII in Azure Monitor, grounding data from Azure AI Search exposing indexed documents in model responses, evaluation results revealing training data patterns",
         "misconfiguration": "Prompt flows deployed without content safety filters, agent endpoints exposed publicly without authentication, model deployments using default quota limits susceptible to exhaustion",
         "excessive-permissions": "Managed identity with Contributor role on AI Foundry hub granting access to all connected resources, shared API keys used across multiple agent deployments, overly broad Azure RBAC roles on AI Foundry projects",
-        "unauthorized-access": "AI Foundry project endpoints accessible without Entra ID authentication, cross-project model access via misconfigured hub-level permissions, unauthorized prompt flow deployment through inherited RBAC roles"
+        "unauthorized-access": "AI Foundry project endpoints accessible without Entra ID authentication, cross-project model access via misconfigured hub-level permissions, unauthorized prompt flow deployment through inherited RBAC roles",
+        "data-exfiltration": "AI Foundry agents with tool connectors orchestrating multi-step data extraction across Azure Storage, Cosmos DB, and other data sources, prompt flow outputs aggregating sensitive data from multiple connected systems",
+        "third-party-integration-risk": "MCP server connections to external services introducing trust dependencies on third-party tool providers, AI Foundry marketplace integrations accessing agent data and prompt flow configurations",
+        "credential-theft": "Managed identity tokens exposed via Azure IMDS from AI Foundry compute, tool connector credentials stored in agent configurations, API keys for connected services accessible through prompt flow environment variables",
+        "ai-model-extraction": "Systematic querying of fine-tuned models deployed through AI Foundry to replicate specialized enterprise knowledge, embedding extraction through agent interactions revealing proprietary data patterns"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -1439,6 +1447,30 @@
           "Enforce Entra ID Conditional Access policies requiring MFA and compliant devices for AI Foundry access",
           "Configure AI Foundry network isolation using private endpoints and disable public endpoint access",
           "Enable Azure Activity Log alerts for AI Foundry resource modifications and deployment operations"
+        ],
+        "data-exfiltration": [
+          "Configure private endpoints for all AI Foundry connected resources to prevent data egress to unauthorized destinations",
+          "Use Azure Monitor to track data volumes flowing through agent tool connectors and alert on anomalous extraction patterns",
+          "Scope managed identity permissions on AI Foundry agents to specific storage accounts and databases rather than resource group-level access",
+          "Enable data exfiltration prevention policies on the AI Foundry managed network"
+        ],
+        "third-party-integration-risk": [
+          "Audit all MCP server registrations and require security review before connecting agents to third-party tool providers",
+          "Use network security groups to restrict which external endpoints AI Foundry agents can communicate with",
+          "Monitor tool connector traffic patterns in Azure Monitor for unexpected data flows to third-party endpoints",
+          "Restrict AI Foundry marketplace integration installations to admin-approved integrations only"
+        ],
+        "credential-theft": [
+          "Use managed identities with least-privilege RBAC for all AI Foundry resource access instead of stored credentials",
+          "Store tool connector credentials in Azure Key Vault and reference them via AI Foundry secret references",
+          "Configure private endpoints for AI Foundry to prevent credential exposure on public networks",
+          "Monitor Azure Activity Log for managed identity token acquisition patterns from AI Foundry resources"
+        ],
+        "ai-model-extraction": [
+          "Configure per-deployment rate limits on AI Foundry model endpoints to prevent systematic querying",
+          "Enable Azure Monitor alerts for anomalous API usage patterns indicating model extraction attempts",
+          "Use private endpoints for AI Foundry model deployments to restrict access to authorized networks",
+          "Monitor prompt flow invocation volumes and patterns for extraction-style query behavior"
         ]
       }
     },

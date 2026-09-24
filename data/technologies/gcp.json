@@ -11,6 +11,7 @@
       "description": "Enterprise agent orchestration platform for building, deploying, and managing AI agents with integrated tools and memory",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "tool-invocation-abuse",
         "sensitive-data-exposure",
         "misconfiguration",
@@ -23,6 +24,7 @@
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection through managed MCP server responses poisoning agent context, multi-agent orchestration chains amplifying injection across coordinated agents, grounding data from enterprise sources manipulating agent behavior",
+        "insecure-output-handling": "Agent tool calls passing model-generated arguments to managed MCP servers and function tools that build SQL, shell or API requests, model-written code executed on application hosts, agent responses rendered as HTML/Markdown",
         "tool-invocation-abuse": "Managed MCP servers with broad GCP API access exploited through crafted agent context, multi-agent coordination enabling cascading unauthorized tool calls across agent boundaries",
         "sensitive-data-exposure": "Agent memory persisting sensitive conversation data across sessions, managed MCP server responses caching confidential enterprise data, agent orchestration logs in Cloud Logging capturing PII from tool interactions",
         "misconfiguration": "Agent identity policies left at defaults allowing unrestricted tool access, managed MCP servers deployed with excessive data source connectivity, agent memory retention configured without expiration policies",
@@ -39,6 +41,12 @@
           "Implement input validation and content filtering on agent endpoints before context assembly",
           "Use Agent Platform guardrails to define behavioral boundaries and restrict agent responses to approved topics",
           "Isolate user-provided input from system instructions in agent prompt templates"
+        ],
+        "insecure-output-handling": [
+          "Treat agent responses and tool-call arguments as untrusted in tools; never pass them to eval, shell or dynamic SQL",
+          "Run model-generated code in Agent Platform Code Execution sandboxes (no network access), not the agent runtime",
+          "Screen agent responses with Model Armor (malicious URL detection enabled) before links are rendered to users",
+          "Encode agent output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "tool-invocation-abuse": [
           "Configure per-tool IAM permissions on managed MCP servers with least-privilege service account bindings",
@@ -283,6 +291,7 @@
       "description": "Unified ML platform for training and deploying models",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-training-data-poisoning",
         "ai-model-extraction",
         "misconfiguration",
@@ -306,6 +315,12 @@
           "Enable Vertex AI Safety Settings to configure content filtering thresholds per harm category",
           "Screen prompts and responses with Model Armor to detect prompt injection and jailbreak attempts",
           "Isolate user-provided input from system instructions using structured API request formats with separate content roles"
+        ],
+        "insecure-output-handling": [
+          "Treat Vertex AI responses as untrusted; never pass them to eval, shell or dynamic SQL",
+          "Constrain responses with responseSchema (responseMimeType application/json) and still validate values server-side",
+          "Screen responses with Model Armor malicious URL detection (floor settings or templates) before rendering links",
+          "Encode output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "ai-training-data-poisoning": [
           "Use Vertex AI Data Labeling with reviewer consensus requirements to validate training data quality",
@@ -359,6 +374,7 @@
       "description": "Google's generative AI models API",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-model-extraction",
         "sensitive-data-exposure",
         "excessive-permissions",
@@ -379,6 +395,12 @@
           "Use system instructions to establish clear behavioral boundaries that resist user-supplied prompt overrides",
           "Implement output filtering on Gemini responses to detect and redact sensitive data leakage",
           "Use structured API request formats to isolate user-provided content from system-level instructions"
+        ],
+        "insecure-output-handling": [
+          "Never render Gemini output as trusted HTML or pass it or function-call arguments to eval, shell or dynamic SQL",
+          "Request structured output with a JSON schema and still validate values server-side, as valid JSON can be unsafe",
+          "Screen responses with Model Armor sanitizeModelResponse and malicious URL detection before rendering links",
+          "Apply output encoding and a Content Security Policy when displaying responses in a browser"
         ],
         "ai-model-extraction": [
           "Enforce per-project API quota limits on Gemini API endpoints to cap request volume",
@@ -1464,7 +1486,6 @@
       "category": "networking",
       "description": "API management platform",
       "threatIds": [
-        "injection-attack",
         "dos-attack",
         "broken-authentication",
         "sensitive-data-exposure",
@@ -1474,19 +1495,12 @@
         "enforcesEncryption": true
       },
       "threatContext": {
-        "injection-attack": "Backend service receiving unsanitized input from ESP proxy, OpenAPI spec validation bypass, gRPC message manipulation",
         "dos-attack": "Quota limit exhaustion, ESP proxy resource consumption, backend overload through rate limit bypass",
         "broken-authentication": "Missing API key validation, JWT validation bypass in ESP config, service account authentication misconfiguration, CORS allowing credential exposure",
         "sensitive-data-exposure": "Cloud Logging capturing sensitive request/response data, API key exposure in URLs, error responses leaking backend details",
         "misconfiguration": "OpenAPI specification with overly permissive endpoint access, ESP proxy configuration without proper quota/rate limiting, missing service-level IAM restrictions, CORS misconfiguration allowing credential exposure"
       },
       "threatMitigations": {
-        "injection-attack": [
-          "Define strict OpenAPI request schema validation in the Endpoints service configuration to reject malformed inputs",
-          "Enable ESP (Extensible Service Proxy) request validation to enforce content-type and payload size limits",
-          "Implement server-side input validation in the backend service independent of ESP proxy filtering",
-          "Use Cloud Armor security policies in front of Cloud Endpoints for additional request filtering"
-        ],
         "dos-attack": [
           "Configure per-API-key and per-consumer quota limits in the Endpoints service configuration",
           "Set ESP proxy connection timeout and maximum request size limits to prevent resource exhaustion",
@@ -2439,14 +2453,12 @@
         "unauthorized-access",
         "misconfiguration",
         "dos-attack",
-        "excessive-permissions",
-        "injection-attack"
+        "excessive-permissions"
       ],
       "threatContext": {
         "unauthorized-access": "Unauthorized job creation or triggering via overly permissive IAM bindings, cross-project job invocation through service account impersonation, unauthenticated HTTP target endpoints triggered by scheduler",
         "misconfiguration": "HTTP targets without OIDC/OAuth authentication headers, overly frequent cron schedules overwhelming downstream services, Pub/Sub targets publishing to unintended topics, retry policies causing amplification of failed requests",
-        "dos-attack": "Cron schedule abuse creating high-frequency job triggers that overwhelm target services, retry configuration amplifying request volume on failures, multiple scheduler jobs targeting the same endpoint simultaneously",
-        "injection-attack": "Malicious payloads in HTTP request body or headers passed to target endpoints, Pub/Sub message body manipulation through scheduler job configuration, App Engine HTTP target path injection"
+        "dos-attack": "Cron schedule abuse creating high-frequency job triggers that overwhelm target services, retry configuration amplifying request volume on failures, multiple scheduler jobs targeting the same endpoint simultaneously"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -2471,11 +2483,6 @@
           "Create per-job service accounts with IAM roles scoped to only the target resource (specific Cloud Function, Pub/Sub topic, or HTTP endpoint)",
           "Use IAM Recommender to identify and remove unused permissions from Cloud Scheduler service accounts",
           "Restrict service account impersonation permissions to prevent scheduler jobs from assuming overly privileged identities"
-        ],
-        "injection-attack": [
-          "Validate and sanitize HTTP request body and header values configured in scheduler job definitions",
-          "Use structured Pub/Sub message schemas to reject malformed payloads from scheduler job triggers",
-          "Restrict who can update scheduler job configurations using IAM policies on cloudscheduler.jobs.update"
         ]
       }
     },

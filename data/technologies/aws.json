@@ -148,6 +148,7 @@
       "description": "Managed generative AI service for foundation models",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-training-data-poisoning",
         "ai-model-extraction",
         "sensitive-data-exposure",
@@ -162,7 +163,8 @@
         "ai-model-extraction": "Systematic querying of custom fine-tuned models to replicate specialized behavior, embedding model output analysis to reconstruct proprietary knowledge",
         "excessive-permissions": "IAM policies with bedrock:* allowing invocation of all models, knowledge base access, and fine-tuning operations; overly broad InvokeModel permissions enabling access to all foundation models",
         "dos-attack": "Provisioned throughput exhaustion, on-demand quota consumption, large context window requests consuming model capacity",
-        "unauthorized-access": "Misconfigured resource policies or cross-account access exposing models and knowledge bases, IAM credential theft providing access to model invocation and fine-tuning operations"
+        "unauthorized-access": "Misconfigured resource policies or cross-account access exposing models and knowledge bases, IAM credential theft providing access to model invocation and fine-tuning operations",
+        "insecure-output-handling": "Model responses from InvokeModel/Converse rendered as HTML/Markdown (stored XSS) or passed to eval, shell or SQL; toolUse.input arguments driving downstream code, which Bedrock Guardrails content filters do not evaluate"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -170,6 +172,11 @@
           "Implement input validation and sanitization on all user-supplied prompts before invoking models",
           "Use system prompt anchoring techniques and separate user input from system instructions in API calls",
           "Configure Guardrail denied topics and word filters to prevent sensitive information disclosure"
+        ],
+        "insecure-output-handling": [
+          "Never render Bedrock output as trusted HTML or pass it or toolUse arguments to eval, shell or dynamic SQL",
+          "Use Converse structured outputs (outputConfig.textFormat) and strict: true tools, then validate values server-side",
+          "Apply output encoding and a Content Security Policy when displaying model responses in a browser"
         ],
         "ai-training-data-poisoning": [
           "Restrict S3 bucket access for Knowledge Base data sources using least-privilege IAM policies",
@@ -215,6 +222,7 @@
       "description": "Platform for building, deploying, and operating AI agents at scale",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "tool-invocation-abuse",
         "excessive-permissions",
         "misconfiguration",
@@ -235,7 +243,8 @@
         "unauthorized-access": "Cross-account agent invocation via misconfigured resource policies, unauthorized tool registration allowing rogue tools in agent workflows, missing identity verification on agent-to-agent communication",
         "data-exfiltration": "Agent tool connectors orchestrating multi-step data extraction across S3, DynamoDB, and other data sources in a single session, agent session logs aggregating sensitive data from multiple systems into CloudWatch",
         "third-party-integration-risk": "MCP server connections to third-party services introducing trust dependencies on external tool providers, agent workflows routing data through external endpoints without visibility into third-party security posture",
-        "ai-model-extraction": "Systematic querying of custom AgentCore agents to extract enterprise knowledge encoded in agent configurations, prompt templates, and tool invocation patterns"
+        "ai-model-extraction": "Systematic querying of custom AgentCore agents to extract enterprise knowledge encoded in agent configurations, prompt templates, and tool invocation patterns",
+        "insecure-output-handling": "Agent-generated tool arguments forwarded through AgentCore Gateway to Lambda, OpenAPI or MCP targets that build SQL, shell or API calls from them, model-written code executed outside a sandbox, agent responses rendered as HTML/Markdown"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -292,6 +301,12 @@
           "Implement per-user rate limiting on agent invocation endpoints to prevent systematic knowledge extraction",
           "Monitor agent interaction patterns in CloudWatch Logs for high-volume querying indicative of extraction attempts",
           "Use Bedrock model monitoring integration to detect distribution shifts from extraction-style query patterns"
+        ],
+        "insecure-output-handling": [
+          "Treat agent responses and tool-call arguments as untrusted in Gateway targets; never pass them to eval, shell or SQL",
+          "Attach AgentCore Policy to the Gateway with Cedar rules restricting tool input parameters to expected values",
+          "Run model-generated code only in AgentCore Code Interpreter in Sandbox network mode with a least-privilege role",
+          "Encode agent output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ]
       }
     },
@@ -303,6 +318,7 @@
       "description": "Machine learning model training and deployment platform",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-training-data-poisoning",
         "ai-model-extraction",
         "misconfiguration",
@@ -326,6 +342,11 @@
           "Implement input validation and prompt sanitization before sending requests to SageMaker inference endpoints",
           "Screen prompts and responses with the Amazon Bedrock ApplyGuardrail API (prompt attack filter) in front of SageMaker endpoints",
           "Use custom inference containers with built-in prompt filtering logic"
+        ],
+        "insecure-output-handling": [
+          "Treat SageMaker endpoint responses as untrusted; never pass them to eval, shell commands or dynamic SQL",
+          "Constrain generated output to a strict schema and validate it server-side before any downstream component consumes it",
+          "Encode endpoint output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "ai-training-data-poisoning": [
           "Restrict write access to training data S3 buckets using least-privilege IAM policies with specific resource ARNs",
@@ -573,7 +594,7 @@
       "category": "database",
       "description": "Managed search and analytics engine",
       "threatIds": [
-        "injection-attack",
+        "query-injection",
         "unauthorized-access",
         "data-exfiltration",
         "misconfiguration",
@@ -581,14 +602,14 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "injection-attack": "Query DSL injection via _search endpoint, script injection in Painless scripts, SQL plugin query injection",
+        "query-injection": "Query DSL injection via _search endpoint, script injection in Painless scripts, SQL plugin query injection",
         "unauthorized-access": "Public domain endpoint exposure, fine-grained access control bypass, IAM-based access policy misconfiguration, Kibana/Dashboards anonymous access",
         "data-exfiltration": "Bulk API data extraction, snapshot to S3 repository theft, cross-cluster replication abuse, scroll API for large dataset extraction",
         "sensitive-data-exposure": "Index data exposure via public access, log data containing PII, Dashboards saved objects with sensitive queries",
         "backup-exposure": "Automated snapshots to S3 repository accessible to unauthorized principals, manual snapshot sharing, snapshot repository policy misconfiguration"
       },
       "threatMitigations": {
-        "injection-attack": [
+        "query-injection": [
           "Sanitize and validate all user inputs before constructing OpenSearch Query DSL or SQL queries",
           "Disable Painless inline scripting in production clusters or restrict script contexts via cluster settings",
           "Use parameterized queries through the OpenSearch SQL plugin rather than string concatenation"
@@ -1398,7 +1419,6 @@
       "category": "networking",
       "description": "API management service",
       "threatIds": [
-        "injection-attack",
         "dos-attack",
         "broken-authentication",
         "sensitive-data-exposure",
@@ -1409,7 +1429,6 @@
         "enforcesEncryption": true
       },
       "threatContext": {
-        "injection-attack": "Lambda proxy integration passing unsanitized input, SQL injection through query parameters to backend databases, request body manipulation bypassing API validation",
         "dos-attack": "Throttling limits bypass via distributed requests, usage plan quota exhaustion, WebSocket connection flooding, resource exhaustion through large payload attacks",
         "broken-authentication": "Missing API key requirements, disabled IAM authorization, overly permissive Lambda authorizers, CORS misconfiguration allowing credential theft, JWT validation bypass",
         "sensitive-data-exposure": "Unmasked data in CloudWatch access logs, API responses leaking internal error details, request/response logging capturing PII, stage variables containing secrets",
@@ -1417,12 +1436,6 @@
         "unauthorized-access": "REST API resource policy allowing unauthenticated access, missing authorization on routes, API key requirement disabled, Lambda authorizer returning overly permissive policy documents, private API accessible from unintended VPCs"
       },
       "threatMitigations": {
-        "injection-attack": [
-          "Enable API Gateway request validation to reject malformed requests before reaching backend",
-          "Use API Gateway request body models with JSON Schema to enforce strict input schemas",
-          "Associate AWS WAF with REST APIs using SQL injection and XSS managed rule groups",
-          "Implement input sanitization in Lambda authorizers or backend integration layers"
-        ],
         "dos-attack": [
           "Configure usage plans with throttling limits and API key quotas per consumer",
           "Associate AWS WAF with rate-based rules to block excessive request volumes per IP",
@@ -2352,7 +2365,7 @@
       "description": "Managed GraphQL and real-time API service",
       "threatIds": [
         "graphql-abuse",
-        "injection-attack",
+        "query-injection",
         "broken-authentication",
         "excessive-permissions",
         "dos-attack",
@@ -2363,7 +2376,7 @@
       },
       "threatContext": {
         "graphql-abuse": "Deeply nested query attacks exhausting resolver limits, introspection enabled in production exposing schema, batching attacks via aliases, field-level authorization bypass through nested queries",
-        "injection-attack": "VTL resolver template injection, DynamoDB query injection through unsanitized resolver mappings, Lambda data source parameter manipulation",
+        "query-injection": "VTL resolver template injection, DynamoDB query injection through unsanitized resolver mappings, Lambda data source parameter manipulation",
         "broken-authentication": "API key authentication without expiration rotation, overly permissive Cognito user pool authorization, missing pipeline resolver authorization checks",
         "excessive-permissions": "Data source IAM roles with broad DynamoDB/Lambda access, cross-account data source access without proper boundaries",
         "dos-attack": "Subscription flooding via WebSocket connections, resolver timeout exploitation, complex query construction causing Lambda cold starts",
@@ -2376,7 +2389,7 @@
           "Use AppSync pipeline resolvers with per-field authorization to prevent field-level access bypass",
           "Configure resolver-level rate limiting using AWS WAF associated with the AppSync API"
         ],
-        "injection-attack": [
+        "query-injection": [
           "Use parameterized VTL resolver templates with utility functions like \\.dynamodb.toDynamoDB() for safe input handling",
           "Validate and sanitize all resolver input arguments using VTL request mapping template validation logic",
           "Enforce strict GraphQL input types with non-nullable fields and custom scalars for data validation",
@@ -2462,7 +2475,7 @@
       "category": "database",
       "description": "Managed graph database for highly connected datasets",
       "threatIds": [
-        "injection-attack",
+        "query-injection",
         "unauthorized-access",
         "data-exfiltration",
         "misconfiguration",
@@ -2470,14 +2483,14 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "injection-attack": "Gremlin query injection via string concatenation, SPARQL injection in RDF queries, openCypher query manipulation",
+        "query-injection": "Gremlin query injection via string concatenation, SPARQL injection in RDF queries, openCypher query manipulation",
         "unauthorized-access": "IAM database authentication bypass, public cluster endpoint exposure, security group misconfiguration allowing external access",
         "data-exfiltration": "Bulk export via Neptune export to S3, graph traversal to extract connected data, cluster snapshot sharing to external accounts",
         "sensitive-data-exposure": "Graph relationship data exposing sensitive connections, vertex/edge properties containing PII, query logs with sensitive data",
         "backup-exposure": "Cluster snapshot sharing to external AWS accounts, automated backup retention with sensitive graph data, snapshot copy to attacker-controlled regions"
       },
       "threatMitigations": {
-        "injection-attack": [
+        "query-injection": [
           "Use parameterized Gremlin queries via the Neptune Java driver or HTTP API to prevent query injection",
           "Validate and sanitize all user inputs before constructing SPARQL or openCypher queries",
           "Restrict Neptune query execution to read-only IAM roles for application accounts that do not need write access"
@@ -2975,13 +2988,13 @@
         "misconfiguration",
         "sensitive-data-exposure",
         "unauthorized-access",
-        "injection-attack",
+        "query-injection",
         "data-exfiltration",
         "credential-theft",
         "account-takeover"
       ],
       "threatContext": {
-        "injection-attack": "Email header injection via unsanitized From/To/Subject fields, HTML/JavaScript injection in email body templates, SMTP command injection through raw SendRawEmail API",
+        "query-injection": "Email header injection via unsanitized From/To/Subject fields, HTML/JavaScript injection in email body templates, SMTP command injection through raw SendRawEmail API",
         "credential-theft": "SMTP credential theft (IAM-derived SMTP username/password), SES API access key exposure, compromised sending authorization delegate credentials",
         "sensitive-data-exposure": "PII in email bodies and attachments sent via SES, bounce/complaint notifications containing recipient data, email content logged in CloudWatch or S3 configuration sets",
         "account-takeover": "Compromised SES SMTP credentials used for spam/phishing campaigns, domain spoofing via missing SPF/DKIM/DMARC, sending authorization abuse from delegate accounts",
@@ -3006,7 +3019,7 @@
           "Enforce aws:SourceVpc conditions on SES IAM policies to restrict API access to trusted networks",
           "Enable CloudTrail data events for SES to audit all email sending and configuration API calls"
         ],
-        "injection-attack": [
+        "query-injection": [
           "Use the SES v2 SendEmail API with structured message parameters instead of SendRawEmail for application-generated emails",
           "Validate and sanitize all user-supplied input before including it in email headers or body content",
           "Use SES email templates with parameterized variables to prevent injection through template rendering"

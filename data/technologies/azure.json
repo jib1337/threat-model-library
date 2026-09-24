@@ -150,6 +150,7 @@
       "description": "OpenAI models including GPT-4 and DALL-E",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-training-data-poisoning",
         "ai-model-extraction",
         "sensitive-data-exposure",
@@ -166,7 +167,8 @@
         "excessive-permissions": "API keys granting access to all model deployments, RBAC roles (Cognitive Services User/Contributor) assigned too broadly, managed identity with access to all Azure OpenAI resources in subscription",
         "dos-attack": "Tokens-per-minute (TPM) quota exhaustion per deployment, concurrent request limit abuse, large context window requests consuming capacity, cost attack via provisioned throughput exhaustion",
         "misconfiguration": "Content filtering disabled or in asynchronous mode, model deployments without rate limits, public network access enabled without IP restrictions, data zone misconfiguration for compliance requirements",
-        "unauthorized-access": "API key exposure in client-side code or repositories, RBAC misconfiguration on Azure OpenAI resource, public network access without firewall rules, missing managed identity authentication"
+        "unauthorized-access": "API key exposure in client-side code or repositories, RBAC misconfiguration on Azure OpenAI resource, public network access without firewall rules, missing managed identity authentication",
+        "insecure-output-handling": "Responses rendered as HTML/Markdown in chat front ends (stored XSS, Markdown image exfiltration), function-calling arguments passed to eval, SQL or shell, On Your Data answers echoing attacker-controlled indexed content into downstream sinks"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -174,6 +176,11 @@
           "Implement input validation and prompt guardrails in the application layer before calling the API",
           "Use system message hardening with clear boundaries separating instructions from user input",
           "Enable abuse monitoring and configure alerting for anomalous prompt patterns"
+        ],
+        "insecure-output-handling": [
+          "Never render Azure OpenAI output as trusted HTML or pass it or function arguments to eval, shell or dynamic SQL",
+          "Use strict: true structured outputs and function schemas, then validate values server-side (not in Assistants)",
+          "Apply output encoding and a Content Security Policy when displaying responses in a browser"
         ],
         "ai-training-data-poisoning": [
           "Validate and sanitize all fine-tuning training data before upload to Azure OpenAI",
@@ -1384,6 +1391,7 @@
       "description": "Unified platform for building, evaluating, and deploying AI agents and applications",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "tool-invocation-abuse",
         "ai-training-data-poisoning",
         "sensitive-data-exposure",
@@ -1397,6 +1405,7 @@
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection via connected data sources in agent workflows, prompt flow manipulation through crafted grounding data, multi-agent orchestration amplifying injection across agent chains",
+        "insecure-output-handling": "Agent tool calls passing model-generated arguments to Azure Functions, OpenAPI tools or MCP servers that build SQL, shell or API requests from them, agent responses rendered as HTML/Markdown in client apps",
         "tool-invocation-abuse": "MCP server endpoints connected to AI Foundry agents exploited to invoke Azure resource management APIs, function calling abuse through crafted model responses triggering unintended tool execution",
         "ai-training-data-poisoning": "Fine-tuning datasets in Azure Blob Storage manipulated to introduce backdoors, evaluation datasets tampered to produce misleading safety scores, custom model imports containing trojaned weights",
         "sensitive-data-exposure": "Prompt flow traces capturing PII in Azure Monitor, grounding data from Azure AI Search exposing indexed documents in model responses, evaluation results revealing training data patterns",
@@ -1414,6 +1423,12 @@
           "Use prompt flow input validation nodes to sanitize user inputs before they reach the model",
           "Configure Responsible AI guardrails in AI Foundry project settings for all deployed agents",
           "Implement grounding data isolation to prevent user-supplied content from mixing with system instructions"
+        ],
+        "insecure-output-handling": [
+          "Treat agent output and tool arguments as untrusted; never pass them to eval, shell or SQL in tool backends",
+          "Use strict: true structured outputs on Azure OpenAI deployments; validate Agent Service output server-side",
+          "Run model-generated code in the Foundry Code Interpreter Hyper-V sandbox, never on application hosts",
+          "Encode agent output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "tool-invocation-abuse": [
           "Scope managed identities used by AI Foundry agents to specific resource groups and actions with least-privilege RBAC",
@@ -1691,7 +1706,7 @@
       "threatIds": [
         "misconfiguration",
         "dos-attack",
-        "injection-attack",
+        "query-injection",
         "network-misconfiguration",
         "sensitive-data-exposure"
       ],
@@ -1701,7 +1716,7 @@
       "threatContext": {
         "misconfiguration": "WAF in detection mode instead of prevention, deprecated SSL policy allowing weak ciphers, backend pool health probe misconfiguration, URL path-based routing exposing unintended backends",
         "dos-attack": "Connection draining abuse, backend pool exhaustion, HTTP/2 concurrent streams attack, slow HTTP attacks exhausting connections",
-        "injection-attack": "Rewrite rules allowing header injection, request smuggling via HTTP/2 downgrading, URL manipulation bypassing path-based routing",
+        "query-injection": "Rewrite rules allowing header injection, request smuggling via HTTP/2 downgrading, URL manipulation bypassing path-based routing",
         "network-misconfiguration": "Public IP without WAF, backend pool servers accessible directly bypassing gateway, NSG allowing traffic not from AppGW subnet, missing DDoS Network Protection",
         "sensitive-data-exposure": "WAF logs capturing sensitive request/response data, access logs containing authentication headers, SSL certificate private key exposure, backend health probe responses containing internal details, diagnostic logs with PII"
       },
@@ -1718,7 +1733,7 @@
           "Set connection draining timeout and request timeout to appropriate values",
           "Use autoscaling with maximum instance limits to absorb traffic spikes"
         ],
-        "injection-attack": [
+        "query-injection": [
           "Enable WAF in Prevention mode with SQL injection and XSS rule groups",
           "Validate rewrite rule expressions to prevent header injection patterns",
           "Configure request size limits and file upload restrictions in WAF policy",
@@ -2726,7 +2741,7 @@
       "threatIds": [
         "search-index-poisoning",
         "sensitive-data-exposure",
-        "injection-attack",
+        "query-injection",
         "unauthorized-access",
         "misconfiguration",
         "data-exfiltration",
@@ -2735,7 +2750,7 @@
       "threatContext": {
         "search-index-poisoning": "RAG retrieval manipulation via malicious document injection, skillset output tampering, semantic ranking manipulation to surface attacker content, vector embedding poisoning",
         "sensitive-data-exposure": "Indexed document content exposure via search queries, semantic answers revealing PII, debug sessions exposing raw data, skillset intermediate outputs containing sensitive fields",
-        "injection-attack": "OData filter injection via search queries, Lucene query syntax abuse, custom skill URL injection for SSRF",
+        "query-injection": "OData filter injection via search queries, Lucene query syntax abuse, custom skill URL injection for SSRF",
         "unauthorized-access": "Admin API key exposure granting full index management, query API key leakage enabling search access, public network access without IP restrictions, missing managed identity authentication for indexers",
         "misconfiguration": "Public endpoint without IP restrictions, admin API key not rotated, semantic ranking exposing unintended content, indexer skillset without data masking, CORS allowing unrestricted origins",
         "data-exfiltration": "Bulk document extraction via search queries, index data export, debug sessions capturing raw indexed content, skillset output containing full document text",
@@ -2754,7 +2769,7 @@
           "Restrict debug session access via Azure RBAC and disable debug sessions in production environments",
           "Implement document-level security trimming using Azure AI Search security filters on queries"
         ],
-        "injection-attack": [
+        "query-injection": [
           "Validate and sanitize all user-supplied search parameters before constructing OData filter and Lucene query expressions",
           "Restrict custom skill endpoint URLs to an allowlist of trusted Azure Function and API Management endpoints",
           "Use Azure AI Search simple query mode instead of full Lucene syntax for user-facing search applications",

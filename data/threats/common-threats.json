@@ -4,7 +4,7 @@
       "id": "sql-injection",
       "name": "SQL Injection",
       "description": "Attacker injects malicious SQL queries through user input to manipulate database operations",
-      "severity": "critical",
+      "severity": "high",
       "stride": [
         "tampering",
         "information-disclosure"
@@ -352,9 +352,9 @@
     },
     {
       "id": "injection-attack",
-      "name": "Code Injection",
-      "description": "Attacker injects malicious code that gets executed by the application",
-      "severity": "high",
+      "name": "Code and Command Injection",
+      "description": "Attacker supplies input that the application or platform executes as code, OS commands, scripts or templates, for example through eval, shell calls, server-side template rendering, CI/CD expression interpolation or unsafe deserialization",
+      "severity": "critical",
       "stride": [
         "tampering",
         "elevation-of-privilege"
@@ -382,7 +382,7 @@
         },
         {
           "id": "ctrl-inject-3",
-          "description": "Implement Content Security Policy (CSP)"
+          "description": "Never pass untrusted input to eval, shell commands, template engines or deserializers; use safe APIs with argument arrays"
         },
         {
           "id": "ctrl-inject-4",
@@ -394,6 +394,45 @@
         }
       ],
       "isPathwayThreat": true
+    },
+    {
+      "id": "query-injection",
+      "name": "Query and Header Injection",
+      "description": "Attacker manipulates non-SQL query, filter or protocol syntax through unsanitized input, such as LDAP filters, graph queries (Gremlin, Cypher, SPARQL), search queries (Query DSL, Lucene, OData), time-series queries, XPath, or HTTP and email headers, to read or modify data or alter how requests are handled",
+      "severity": "high",
+      "stride": [
+        "tampering",
+        "information-disclosure"
+      ],
+      "mitreTechniques": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        }
+      ],
+      "controls": [
+        {
+          "id": "ctrl-query-1",
+          "description": "Use parameterized queries or the driver query builder for every query language instead of string concatenation"
+        },
+        {
+          "id": "ctrl-query-2",
+          "description": "Escape untrusted input for the specific syntax it enters (LDAP filter, XPath, Lucene, OData) where parameterization is unavailable"
+        },
+        {
+          "id": "ctrl-query-3",
+          "description": "Strip or reject CR and LF characters in any input written to HTTP or email headers"
+        },
+        {
+          "id": "ctrl-query-4",
+          "description": "Validate input against strict allow-lists of expected types, formats and field names"
+        },
+        {
+          "id": "ctrl-query-5",
+          "description": "Run application queries under least-privilege accounts and disable server-side scripting features that untrusted queries do not need"
+        }
+      ]
     },
     {
       "id": "excessive-permissions",
@@ -1188,7 +1227,7 @@
       "id": "prompt-injection",
       "name": "Prompt Injection",
       "description": "Attacker manipulates AI model inputs to bypass safety controls, extract sensitive information, or cause unintended behavior",
-      "severity": "critical",
+      "severity": "high",
       "stride": [
         "tampering",
         "information-disclosure",
@@ -1229,6 +1268,42 @@
         {
           "id": "ctrl-prompt-7",
           "description": "Isolate user-provided input from system instructions using structured API formats"
+        }
+      ]
+    },
+    {
+      "id": "insecure-output-handling",
+      "name": "Insecure Output Handling",
+      "description": "Application passes AI model output to browsers, interpreters, databases or downstream APIs without validation or encoding.",
+      "severity": "high",
+      "stride": [
+        "tampering",
+        "elevation-of-privilege",
+        "information-disclosure"
+      ],
+      "mitreTechniques": [
+        {
+          "id": "T1059",
+          "name": "Command and Scripting Interpreter",
+          "tactic": "Execution"
+        }
+      ],
+      "controls": [
+        {
+          "id": "ctrl-output-1",
+          "description": "Treat all model output as untrusted input to every downstream component"
+        },
+        {
+          "id": "ctrl-output-2",
+          "description": "Encode model output for its rendering context and apply a Content Security Policy when displaying it in a browser"
+        },
+        {
+          "id": "ctrl-output-3",
+          "description": "Never pass model output to eval, shell commands or dynamic SQL; use parameterized queries and safe APIs"
+        },
+        {
+          "id": "ctrl-output-4",
+          "description": "Constrain responses to strict schemas and validate them server-side before acting on them"
         }
       ]
     },
@@ -2270,7 +2345,7 @@
       "id": "consensus-disruption",
       "name": "Distributed Consensus Disruption",
       "description": "Attacker disrupts the Raft consensus protocol by manipulating leader election, injecting rogue members, or causing network partitions that lead to split-brain scenarios or data inconsistency",
-      "severity": "high",
+      "severity": "medium",
       "stride": [
         "tampering",
         "denial-of-service"

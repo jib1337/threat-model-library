@@ -16,21 +16,23 @@ npm run validate
 
 Fix anything it reports as an error; warnings are advisory but usually worth addressing.
 
-## What makes a good contribution
+## What to contribute
 
-**Technologies** should describe a real, identifiable service, with threats that are
-genuinely characteristic of it. Prefer a handful of accurate threat mappings over an
-exhaustive list of generic ones. Where a threat manifests distinctively on a service,
-say so in `threatContext` — that text is what makes the app's output actionable
-rather than boilerplate.
+| Contribution area | Requirements |
+| --- | --- |
+| Technologies | - Must describe a real, identifiable service with relevant threats attached.<br>- A handful of accurate threat mappings is preferred over an exhaustive list of generic ones.<br>- Where a threat manifests distinctively on a service, say so in `threatContext`, that text makes the app's output actionable rather than boilerplate.<br>- SaaS or Self-hosted technologies MUST be demonstratably widely used.<br>- Adding a new SaaS or self-hosted technology is at the discretion of the maintainer. |
+| Threats | - Be specific enough to act on and general enough to apply across several technologies.<br>- Include at least one control for every threat.<br>- Make controls concrete steps rather than restatements of the threat.<br>- Use real MITRE technique IDs; check them against [attack.mitre.org](https://attack.mitre.org). |
+| Severity | - Reflect the typical worst-case impact of the threat itself, before any technology or data-specific context. |
 
-**Threats** should be specific enough to act on and general enough to apply across
-several technologies. Every threat needs at least one control, and controls should be
-concrete steps rather than restatements of the threat. MITRE technique IDs must be
-real; check them against [attack.mitre.org](https://attack.mitre.org).
+## Versioning
 
-**Severity** reflects the typical worst-case impact of the threat itself, before any
-technology or data-specific context.
+Releases follow semantic versioning. See the below table for general guidance on versioning bumps.
+
+| Bump | When |
+| --- | --- |
+| Major | A technology, threat or control ID is renamed or removed; a provider or category is removed; or the schema changes incompatibly (a field is renamed, removed or changes type). |
+| Minor | Anything is added (technologies, threats, controls, providers, categories, pathway mitigations); threat mappings, severities, flags or MITRE mappings change; or control or mitigation text is reworded. |
+| Patch | Corrections to names, descriptions or `threatContext` that change no mapping, severity, control or mitigation text. |
 
 ## Pull requests
 

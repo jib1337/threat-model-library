@@ -11,6 +11,7 @@
       "description": "Enterprise agent orchestration platform for building, deploying, and managing AI agents with integrated tools and memory",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "tool-invocation-abuse",
         "sensitive-data-exposure",
         "misconfiguration",
@@ -23,6 +24,7 @@
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection through managed MCP server responses poisoning agent context, multi-agent orchestration chains amplifying injection across coordinated agents, grounding data from enterprise sources manipulating agent behavior",
+        "insecure-output-handling": "Agent tool calls passing model-generated arguments to managed MCP servers and function tools that build SQL, shell or API requests, model-written code executed on application hosts, agent responses rendered as HTML/Markdown",
         "tool-invocation-abuse": "Managed MCP servers with broad GCP API access exploited through crafted agent context, multi-agent coordination enabling cascading unauthorized tool calls across agent boundaries",
         "sensitive-data-exposure": "Agent memory persisting sensitive conversation data across sessions, managed MCP server responses caching confidential enterprise data, agent orchestration logs in Cloud Logging capturing PII from tool interactions",
         "misconfiguration": "Agent identity policies left at defaults allowing unrestricted tool access, managed MCP servers deployed with excessive data source connectivity, agent memory retention configured without expiration policies",
@@ -39,6 +41,12 @@
           "Implement input validation and content filtering on agent endpoints before context assembly",
           "Use Agent Platform guardrails to define behavioral boundaries and restrict agent responses to approved topics",
           "Isolate user-provided input from system instructions in agent prompt templates"
+        ],
+        "insecure-output-handling": [
+          "Treat agent responses and tool-call arguments as untrusted in tools; never pass them to eval, shell or dynamic SQL",
+          "Run model-generated code in Agent Platform Code Execution sandboxes (no network access), not the agent runtime",
+          "Screen agent responses with Model Armor (malicious URL detection enabled) before links are rendered to users",
+          "Encode agent output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "tool-invocation-abuse": [
           "Configure per-tool IAM permissions on managed MCP servers with least-privilege service account bindings",
@@ -172,7 +180,7 @@
           "Use Container-Optimized OS or Shielded VMs for reduced attack surface and verified boot"
         ],
         "ssrf-attack": [
-          "Enforce the Metadata-Flavor: Google header on metadata server requests (blocks many SSRF vectors)",
+          "Attach a dedicated least-privilege service account (not the Compute Engine default SA with Editor) so a stolen metadata token has minimal scope",
           "Restrict application-level outbound requests with allowlisted destinations",
           "Use VPC Service Controls to prevent metadata-retrieved credentials from accessing resources outside the perimeter",
           "Validate and sanitize user-supplied URLs at the application layer before issuing server-side requests"
@@ -244,16 +252,15 @@
         "dos-attack"
       ],
       "threatContext": {
-        "container-escape": "Sandbox escape attempts via gVisor vulnerabilities, metadata service access for credential theft (http://metadata.google.internal), /proc filesystem access in misconfigured containers",
+        "container-escape": "Sandbox escape attempts against the gVisor user-space kernel (first-generation services) or the Linux microVM boundary (second-generation services and jobs), kernel exploit chains launched from a compromised container process",
         "misconfiguration": "Unauthenticated service endpoints (allUsers invoker), overly permissive ingress settings, missing VPC connector for internal resources, excessive CPU/memory limits enabling cryptomining",
-        "unauthorized-access": "Public service URLs without IAM authentication, service-to-service invocation without proper identity verification, exposed Cloud Run Admin API",
+        "unauthorized-access": "Public service URLs without IAM authentication, service-to-service invocation without proper identity verification, exposed Cloud Run Admin API, service account token theft from the metadata server (http://metadata.google.internal) via SSRF",
         "dos-attack": "Max instances exhaustion, request timeout exploitation, concurrent request limit abuse, cold start amplification through traffic bursts"
       },
       "threatMitigations": {
         "container-escape": [
-          "Use Cloud Run's built-in gVisor sandbox which provides kernel-level isolation by default",
+          "Isolate untrusted workloads in separate Cloud Run services with dedicated least-privilege service accounts, relying on the per-instance sandbox (gVisor on first-generation, a microVM on second-generation services and jobs) for kernel isolation",
           "Run containers as non-root by specifying a USER directive in the Dockerfile",
-          "Avoid mounting sensitive paths and disable /proc access where not required",
           "Use Artifact Analysis to scan container images for known vulnerabilities before deployment"
         ],
         "misconfiguration": [
@@ -284,6 +291,7 @@
       "description": "Unified ML platform for training and deploying models",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-training-data-poisoning",
         "ai-model-extraction",
         "misconfiguration",
@@ -305,9 +313,14 @@
       "threatMitigations": {
         "prompt-injection": [
           "Enable Vertex AI Safety Settings to configure content filtering thresholds per harm category",
-          "Use Vertex AI Grounding to constrain model responses to verified data sources and reduce hallucination",
-          "Implement Vertex AI Model Monitoring to detect anomalous input patterns indicative of injection attempts",
+          "Screen prompts and responses with Model Armor to detect prompt injection and jailbreak attempts",
           "Isolate user-provided input from system instructions using structured API request formats with separate content roles"
+        ],
+        "insecure-output-handling": [
+          "Treat Vertex AI responses as untrusted; never pass them to eval, shell or dynamic SQL",
+          "Constrain responses with responseSchema (responseMimeType application/json) and still validate values server-side",
+          "Screen responses with Model Armor malicious URL detection (floor settings or templates) before rendering links",
+          "Encode output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "ai-training-data-poisoning": [
           "Use Vertex AI Data Labeling with reviewer consensus requirements to validate training data quality",
@@ -361,6 +374,7 @@
       "description": "Google's generative AI models API",
       "threatIds": [
         "prompt-injection",
+        "insecure-output-handling",
         "ai-model-extraction",
         "sensitive-data-exposure",
         "excessive-permissions",
@@ -381,6 +395,12 @@
           "Use system instructions to establish clear behavioral boundaries that resist user-supplied prompt overrides",
           "Implement output filtering on Gemini responses to detect and redact sensitive data leakage",
           "Use structured API request formats to isolate user-provided content from system-level instructions"
+        ],
+        "insecure-output-handling": [
+          "Never render Gemini output as trusted HTML or pass it or function-call arguments to eval, shell or dynamic SQL",
+          "Request structured output with a JSON schema and still validate values server-side, as valid JSON can be unsafe",
+          "Screen responses with Model Armor sanitizeModelResponse and malicious URL detection before rendering links",
+          "Apply output encoding and a Content Security Policy when displaying responses in a browser"
         ],
         "ai-model-extraction": [
           "Enforce per-project API quota limits on Gemini API endpoints to cap request volume",
@@ -729,7 +749,7 @@
       ],
       "threatContext": {
         "unauthorized-access": "Redis AUTH password exposure, missing IAM-based authentication, VPC network allowing broad access, Memcached without SASL",
-        "cache-poisoning": "Redis command injection for key manipulation, session data tampering, SLAVEOF replication to rogue instance",
+        "cache-poisoning": "Redis command injection for key manipulation, session data tampering, cache writes from any client able to reach an instance without AUTH",
         "data-exfiltration": "Redis BGSAVE/RDB export, key enumeration via SCAN, replication stream capture, Memcached dump via stats commands"
       },
       "threatMitigations": {
@@ -740,7 +760,7 @@
           "Enable in-transit encryption (TLS) for Memorystore Redis to prevent credential sniffing on the network"
         ],
         "cache-poisoning": [
-          "Rename or disable dangerous Redis commands (SLAVEOF, REPLICAOF, CONFIG, DEBUG) via Memorystore Redis configuration",
+          "Enable AUTH (or IAM authentication on Memorystore for Redis Cluster) and in-transit encryption so only the application identity can write keys",
           "Enable in-transit encryption to prevent network-level command injection into Redis connections",
           "Use separate Memorystore instances for different trust levels (session store vs. application cache) to limit blast radius",
           "Monitor Redis command metrics in Cloud Monitoring for unusual write patterns or unexpected command usage"
@@ -931,7 +951,7 @@
         "kubernetes-secrets-exposure"
       ],
       "threatContext": {
-        "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, gVisor/Sandbox escape on GKE Autopilot, kernel exploit escalation via CAP_SYS_ADMIN",
+        "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, gVisor escape from GKE Sandbox pods, kernel exploit escalation via CAP_SYS_ADMIN",
         "misconfiguration": "Workload Identity not enabled (legacy metadata API exposed), Pod Security Standards not enforced, public GKE cluster endpoint, overly permissive RBAC bindings, missing network policies",
         "unauthorized-access": "Metadata server credential theft (http://metadata.google.internal), exposed Kubernetes Dashboard, default compute service account with broad permissions, anonymous RBAC authentication",
         "privilege-escalation": "ServiceAccount token abuse, node service account impersonation, create pods/exec permission abuse for cluster takeover, hostPID namespace sharing for process injection",
@@ -942,7 +962,7 @@
       },
       "threatMitigations": {
         "container-escape": [
-          "Use GKE Autopilot mode which enforces gVisor sandboxing and prevents privileged containers by default",
+          "Use GKE Autopilot, which blocks privileged pods and host namespaces by default, and set runtimeClassName: gvisor to run untrusted pods in GKE Sandbox",
           "Enable GKE Sandbox (gVisor) on Standard clusters for untrusted workloads to add kernel-level isolation",
           "Enforce Pod Security Standards at the namespace level using GKE built-in PodSecurity admission controller",
           "Disable hostPath volume mounts and privileged mode via GKE Policy Controller constraints"
@@ -1466,7 +1486,6 @@
       "category": "networking",
       "description": "API management platform",
       "threatIds": [
-        "injection-attack",
         "dos-attack",
         "broken-authentication",
         "sensitive-data-exposure",
@@ -1476,19 +1495,12 @@
         "enforcesEncryption": true
       },
       "threatContext": {
-        "injection-attack": "Backend service receiving unsanitized input from ESP proxy, OpenAPI spec validation bypass, gRPC message manipulation",
         "dos-attack": "Quota limit exhaustion, ESP proxy resource consumption, backend overload through rate limit bypass",
         "broken-authentication": "Missing API key validation, JWT validation bypass in ESP config, service account authentication misconfiguration, CORS allowing credential exposure",
         "sensitive-data-exposure": "Cloud Logging capturing sensitive request/response data, API key exposure in URLs, error responses leaking backend details",
         "misconfiguration": "OpenAPI specification with overly permissive endpoint access, ESP proxy configuration without proper quota/rate limiting, missing service-level IAM restrictions, CORS misconfiguration allowing credential exposure"
       },
       "threatMitigations": {
-        "injection-attack": [
-          "Define strict OpenAPI request schema validation in the Endpoints service configuration to reject malformed inputs",
-          "Enable ESP (Extensible Service Proxy) request validation to enforce content-type and payload size limits",
-          "Implement server-side input validation in the backend service independent of ESP proxy filtering",
-          "Use Cloud Armor security policies in front of Cloud Endpoints for additional request filtering"
-        ],
         "dos-attack": [
           "Configure per-API-key and per-consumer quota limits in the Endpoints service configuration",
           "Set ESP proxy connection timeout and maximum request size limits to prevent resource exhaustion",
@@ -1587,7 +1599,7 @@
         "enforcesEncryption": true
       },
       "threatContext": {
-        "cache-poisoning": "Cache key manipulation via query parameters, Host header injection for cached malicious responses, cache poisoning through Vary header abuse, signed URL/cookie key compromise",
+        "cache-poisoning": "Cache key manipulation via query parameters, Host header injection for cached malicious responses, cache poisoning through Vary header abuse",
         "misconfiguration": "Caching sensitive user-specific responses, missing cache control headers allowing stale data, origin shield misconfiguration, negative caching exposing errors",
         "dos-attack": "Cache bypass forcing origin requests, large object requests exhausting origin bandwidth, cache invalidation abuse, origin connection pool exhaustion",
         "sensitive-data-exposure": "Cached responses containing authorization tokens, Cloud Logging with PII in URLs, signed URL secrets exposure, error responses revealing backend architecture"
@@ -1595,7 +1607,6 @@
       "threatMitigations": {
         "cache-poisoning": [
           "Configure Cloud CDN cache key policies to include only necessary query parameters and headers, excluding attacker-controllable values",
-          "Use Cloud CDN signed URLs or signed cookies with short expiration times and strong signing keys stored in Secret Manager",
           "Set appropriate Cache-Control and Vary headers at the origin to prevent caching of user-specific or dynamic responses",
           "Enable Cloud CDN cache invalidation logging and monitor for unauthorized invalidation requests via Cloud Audit Logs"
         ],
@@ -2442,14 +2453,12 @@
         "unauthorized-access",
         "misconfiguration",
         "dos-attack",
-        "excessive-permissions",
-        "injection-attack"
+        "excessive-permissions"
       ],
       "threatContext": {
         "unauthorized-access": "Unauthorized job creation or triggering via overly permissive IAM bindings, cross-project job invocation through service account impersonation, unauthenticated HTTP target endpoints triggered by scheduler",
         "misconfiguration": "HTTP targets without OIDC/OAuth authentication headers, overly frequent cron schedules overwhelming downstream services, Pub/Sub targets publishing to unintended topics, retry policies causing amplification of failed requests",
-        "dos-attack": "Cron schedule abuse creating high-frequency job triggers that overwhelm target services, retry configuration amplifying request volume on failures, multiple scheduler jobs targeting the same endpoint simultaneously",
-        "injection-attack": "Malicious payloads in HTTP request body or headers passed to target endpoints, Pub/Sub message body manipulation through scheduler job configuration, App Engine HTTP target path injection"
+        "dos-attack": "Cron schedule abuse creating high-frequency job triggers that overwhelm target services, retry configuration amplifying request volume on failures, multiple scheduler jobs targeting the same endpoint simultaneously"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -2474,11 +2483,6 @@
           "Create per-job service accounts with IAM roles scoped to only the target resource (specific Cloud Function, Pub/Sub topic, or HTTP endpoint)",
           "Use IAM Recommender to identify and remove unused permissions from Cloud Scheduler service accounts",
           "Restrict service account impersonation permissions to prevent scheduler jobs from assuming overly privileged identities"
-        ],
-        "injection-attack": [
-          "Validate and sanitize HTTP request body and header values configured in scheduler job definitions",
-          "Use structured Pub/Sub message schemas to reject malformed payloads from scheduler job triggers",
-          "Restrict who can update scheduler job configurations using IAM policies on cloudscheduler.jobs.update"
         ]
       }
     },

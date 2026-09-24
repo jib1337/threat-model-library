@@ -1789,15 +1789,13 @@
         "sensitive-data-exposure",
         "misconfiguration",
         "unauthorized-access",
-        "credential-theft",
-        "injection-attack"
+        "credential-theft"
       ],
       "threatContext": {
         "sensitive-data-exposure": "Payment card data (PAN, CVV) exposed through improper Stripe.js integration, customer PII in Charge/PaymentIntent metadata, bank account details in Connect payouts, invoice data containing billing addresses and financial details",
         "misconfiguration": "Publishable keys used where secret keys are required, webhook signature verification not implemented, overly permissive API key scopes (full access instead of restricted keys), test mode keys accidentally used in production, missing idempotency keys causing duplicate charges",
         "unauthorized-access": "Unauthorized access to Stripe Dashboard enabling refund abuse, Connect account impersonation via insufficient platform verification, customer portal session hijacking for subscription manipulation, unauthorized access to Financial Connections bank data",
-        "credential-theft": "Stripe secret API keys committed to source code repositories, webhook signing secrets exposed in server logs, Connect OAuth client secrets in environment variables, restricted API keys with excessive permissions stored in CI/CD pipelines",
-        "injection-attack": "Server-side request forgery via webhook URL manipulation, metadata field injection for stored XSS in Dashboard, malicious custom account data in Connect onboarding, Stripe CLI plugin command injection"
+        "credential-theft": "Stripe secret API keys committed to source code repositories, webhook signing secrets exposed in server logs, Connect OAuth client secrets in environment variables, restricted API keys with excessive permissions stored in CI/CD pipelines"
       },
       "threatMitigations": {
         "sensitive-data-exposure": [
@@ -1823,12 +1821,6 @@
           "Use Stripe Restricted API Keys with minimum required permissions for each integration or microservice",
           "Rotate Stripe API keys periodically and immediately revoke keys exposed in source control or logs",
           "Audit active API keys in Stripe Dashboard > Developers and remove keys for decommissioned services"
-        ],
-        "injection-attack": [
-          "Validate all webhook endpoint URLs server-side and restrict outbound requests to known Stripe IP ranges",
-          "Sanitize all user-supplied data before storing it in Stripe metadata fields to prevent stored XSS",
-          "Validate and sanitize all Connect onboarding data (business details, bank accounts) before submitting to Stripe API",
-          "Use Stripe Radar rules to detect and block suspicious payment patterns and injection attempts"
         ]
       }
     },
@@ -1858,8 +1850,7 @@
         "nosql-injection": [
           "Use MongoDB driver parameterized queries and avoid passing user input directly into $where, $expr, or aggregation $lookup stages",
           "Enable MongoDB Atlas Schema Validation to enforce document structure and reject malformed inputs",
-          "Disable server-side JavaScript execution ($where, mapReduce) unless explicitly required by the application",
-          "Use MongoDB Queryable Encryption or Client-Side Field Level Encryption to protect sensitive query parameters"
+          "Disable server-side JavaScript execution ($where, mapReduce) unless explicitly required by the application"
         ],
         "unauthorized-access": [
           "Configure Atlas IP Access List to restrict database connections to specific application server IP ranges or VPC peering",
@@ -2136,7 +2127,7 @@
         "saas-data-leakage",
         "credential-theft",
         "excessive-permissions",
-        "injection-attack",
+        "insecure-output-handling",
         "third-party-integration-risk"
       ],
       "connectionSecurity": {
@@ -2148,7 +2139,7 @@
         "saas-data-leakage": "Regulated or confidential data leaving the organisation in prompts, embeddings, or fine-tuning datasets uploaded to the Files API, use of consumer ChatGPT accounts instead of the enterprise API for corporate data",
         "credential-theft": "OpenAI API keys (sk-...) leaked in client-side code, mobile apps, public git repos, or CI logs, project/service-account keys with organisation-wide scope reused across services, keys embedded in browser-exposed frontends",
         "excessive-permissions": "Function/tool definitions exposing high-privilege actions (database writes, shell, payment APIs) that the model can invoke autonomously, agentic tool-calling loops acting without human confirmation, overly broad function schemas",
-        "injection-attack": "Insecure output handling where model responses are rendered as HTML/Markdown (stored XSS), passed to eval/exec, used to build SQL, or written to shell commands without validation (OWASP LLM02)",
+        "insecure-output-handling": "Insecure output handling where model responses are rendered as HTML/Markdown (stored XSS), passed to eval/exec, used to build SQL, or written to shell commands without validation (OWASP LLM05:2025 Improper Output Handling)",
         "third-party-integration-risk": "Dependence on a single external provider for availability and confidentiality, provider-side breaches or model changes affecting the application, plugins/Actions and Assistants tools reaching internal systems"
       },
       "threatMitigations": {
@@ -2177,8 +2168,8 @@
           "Run agentic tool execution under a dedicated least-privilege service identity, not the calling user or an admin credential",
           "Gate destructive or high-value tool calls behind explicit human approval and rate limits"
         ],
-        "injection-attack": [
-          "Never render model output as trusted HTML/Markdown or pass it to eval, shell, or SQL without context-aware encoding and validation",
+        "insecure-output-handling": [
+          "Never render OpenAI output as trusted HTML or pass it or function-call arguments to eval, shell or dynamic SQL",
           "Constrain outputs to strict JSON schemas and validate them server-side before use",
           "Apply output encoding and a Content Security Policy when displaying model responses in a browser"
         ],
@@ -2201,7 +2192,7 @@
         "saas-data-leakage",
         "credential-theft",
         "excessive-permissions",
-        "injection-attack",
+        "insecure-output-handling",
         "third-party-integration-risk"
       ],
       "connectionSecurity": {
@@ -2213,7 +2204,7 @@
         "saas-data-leakage": "Regulated or proprietary data leaving the organisation in Messages API requests or batch jobs, use of the consumer Claude.ai product instead of the enterprise API for corporate data, document uploads sent to a third-party processor",
         "credential-theft": "Anthropic API keys (sk-ant-...) leaked in client-side code, mobile apps, public repos, or CI logs, workspace/admin keys with broad scope reused across services, keys exposed in browser-facing frontends",
         "excessive-permissions": "tool_use definitions exposing high-privilege actions the model can invoke autonomously, agentic loops and MCP tool servers acting without human confirmation, computer-use / bash tools granting broad system access, overly broad tool input schemas",
-        "injection-attack": "Insecure handling of Claude output rendered as HTML/Markdown (stored XSS), passed to eval/exec, used in SQL, or executed as shell/code without validation (OWASP LLM02), unvalidated tool_use arguments driving downstream commands",
+        "insecure-output-handling": "Insecure handling of Claude output rendered as HTML/Markdown (stored XSS), passed to eval/exec, used in SQL, or executed as shell/code without validation (OWASP LLM05:2025 Improper Output Handling), unvalidated tool_use arguments driving downstream commands",
         "third-party-integration-risk": "Reliance on a single external provider for availability and confidentiality, provider-side breaches or model deprecations affecting the application, MCP connectors and tools reaching internal systems and data sources"
       },
       "threatMitigations": {
@@ -2242,8 +2233,8 @@
           "Run agentic, computer-use, and MCP tool execution under a dedicated least-privilege identity in a sandboxed environment",
           "Require explicit human approval and rate limits for destructive or high-value tool calls"
         ],
-        "injection-attack": [
-          "Never render Claude output as trusted HTML/Markdown or pass it to eval, shell, or SQL without context-aware encoding and validation",
+        "insecure-output-handling": [
+          "Never render Claude output as trusted HTML or pass it or tool_use arguments to eval, shell or dynamic SQL",
           "Constrain responses to strict JSON schemas (or tool_use structured output) and validate them server-side before acting",
           "Apply output encoding and a Content Security Policy when displaying responses in a browser"
         ],
@@ -2269,6 +2260,7 @@
         "sensitive-data-exposure",
         "ai-training-data-poisoning",
         "prompt-injection",
+        "insecure-output-handling",
         "misconfiguration",
         "account-takeover",
         "ai-model-extraction"
@@ -2279,6 +2271,7 @@
         "sensitive-data-exposure": "Proprietary data sent to Hugging Face Inference API and Inference Endpoints, private model repos accidentally set to public, PII in uploaded datasets, Spaces application logs containing user data",
         "ai-training-data-poisoning": "Community-contributed datasets with injected malicious samples, training data manipulation via Hub dataset pull requests, poisoned fine-tuning data uploaded to organization repos",
         "prompt-injection": "Prompt injection against LLMs served via Inference API and Inference Endpoints, indirect injection via poisoned documents retrieved by RAG pipelines using Hub-hosted datasets",
+        "insecure-output-handling": "Model output rendered in Spaces apps with Gradio Chatbot sanitize_html disabled (stored XSS), Inference Provider or Inference Endpoint responses passed to eval, SQL or shell in downstream pipelines",
         "misconfiguration": "Private repos accidentally toggled to public, Spaces secrets exposed in application logs, organization settings allowing unrestricted member access, Inference Endpoints deployed without authentication",
         "account-takeover": "Credential stuffing against Hugging Face accounts, phishing targeting organization admins with access to private model repos, compromised SSO provider cascading to Hub access",
         "ai-model-extraction": "Unauthorized download of gated or private models via stolen tokens, systematic querying of Inference Endpoints to reconstruct fine-tuned model behavior"
@@ -2312,6 +2305,12 @@
           "Implement input validation and output filtering on Inference Endpoints before and after model inference",
           "Deploy Inference Endpoints with content moderation guardrails to detect and block prompt injection patterns",
           "Restrict direct user access to Inference API endpoints by proxying through a backend service with request sanitization"
+        ],
+        "insecure-output-handling": [
+          "Treat Inference Provider and Endpoint responses as untrusted; never pass them to eval, shell or dynamic SQL",
+          "Request json_schema output from Inference Providers or TGI guidance on Endpoints, then validate values server-side",
+          "Keep sanitize_html enabled on Gradio Chatbot components in Spaces that display model output",
+          "Encode output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ],
         "misconfiguration": [
           "Audit repository visibility settings regularly and enforce private-by-default policies for organization repositories",

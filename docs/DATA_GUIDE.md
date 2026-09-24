@@ -104,7 +104,7 @@ Each provider file follows this structure:
   "provider": "aws",
   "category": "compute",
   "description": "Managed generative AI service",
-  "threatIds": ["injection-attack", "sensitive-data-exposure", "misconfiguration", "excessive-permissions"]
+  "threatIds": ["prompt-injection", "sensitive-data-exposure", "misconfiguration", "excessive-permissions"]
 }
 ```
 
@@ -420,7 +420,7 @@ transport-interception threats such as Man-in-the-Middle or Data Exposure in Tra
   "provider": "aws",
   "category": "networking",
   "description": "API management service",
-  "threatIds": ["injection-attack", "dos-attack", "broken-authentication"],
+  "threatIds": ["unauthorized-access", "dos-attack", "broken-authentication"],
   "connectionSecurity": {
     "enforcesEncryption": true
   }

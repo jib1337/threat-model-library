@@ -593,25 +593,12 @@ Before committing changes, verify:
 
 Here's a complete example of adding AWS Bedrock:
 
-**1. Add the threat (if needed) in `common-threats.json`:**
-
-```json
-{
-  "id": "ai-model-abuse",
-  "name": "AI Model Abuse",
-  "description": "Attacker exploits AI model to generate harmful content, extract training data, or bypass safety measures",
-  "stride": ["tampering", "information-disclosure"],
-  "mitreTechniques": [
-    { "id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "Execution" }
-  ],
-  "controls": [
-    { "id": "ctrl-ai-1", "description": "Implement content filtering on inputs and outputs" },
-    { "id": "ctrl-ai-2", "description": "Monitor usage patterns for anomalies" },
-    { "id": "ctrl-ai-3", "description": "Apply rate limiting per user/session" },
-    { "id": "ctrl-ai-4", "description": "Log all interactions for audit purposes" }
-  ]
-}
-```
+**1. Reuse existing threats before adding new ones.** Check `common-threats.json` and the
+category's `presetThreatIds` in `taxonomy.json` first. Bedrock needs no new threat: the
+existing `prompt-injection`, `insecure-output-handling` and `sensitive-data-exposure`
+threats cover it. Only add a threat when no existing one fits (see
+[Adding a New Threat](#adding-a-new-threat)), because a near-duplicate splits users'
+control tracking across two threats.
 
 **2. Add the technology in `aws.json`:**
 
@@ -622,10 +609,10 @@ Here's a complete example of adding AWS Bedrock:
   "provider": "aws",
   "category": "ai-ml",
   "description": "Managed generative AI service for foundation models",
-  "threatIds": ["ai-model-abuse", "sensitive-data-exposure", "misconfiguration", "excessive-permissions", "dos-attack"],
+  "threatIds": ["prompt-injection", "insecure-output-handling", "sensitive-data-exposure", "excessive-permissions", "dos-attack"],
   "threatContext": {
-    "ai-model-abuse": "Prompt injection attacks to bypass guardrails, jailbreaking attempts, training data extraction via carefully crafted prompts",
-    "sensitive-data-exposure": "PII leakage in model responses, conversation history exposure, embedding of sensitive data in fine-tuned models"
+    "prompt-injection": "Guardrail bypass via indirect injection through RAG knowledge bases, jailbreaking foundation models, multi-turn conversation manipulation to override system prompts",
+    "sensitive-data-exposure": "PII leakage in model responses, conversation history exposure in CloudWatch Logs, fine-tuning data exposure in S3"
   }
 }
 ```

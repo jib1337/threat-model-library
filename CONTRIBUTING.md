@@ -24,6 +24,16 @@ Fix anything it reports as an error; warnings are advisory but usually worth add
 | Threats | - Be specific enough to act on and general enough to apply across several technologies.<br>- Include at least one control for every threat.<br>- Make controls concrete steps rather than restatements of the threat.<br>- Use real MITRE technique IDs; check them against [attack.mitre.org](https://attack.mitre.org). |
 | Severity | - Reflect the typical worst-case impact of the threat itself, before any technology or data-specific context. |
 
+## Versioning
+
+Releases follow semantic versioning. See the below table for general guidance on versioning bumps.
+
+| Bump | When |
+| --- | --- |
+| Major | A technology, threat or control ID is renamed or removed; a provider or category is removed; or the schema changes incompatibly (a field is renamed, removed or changes type). |
+| Minor | Anything is added (technologies, threats, controls, providers, categories, pathway mitigations); threat mappings, severities, flags or MITRE mappings change; or control or mitigation text is reworded. |
+| Patch | Corrections to names, descriptions or `threatContext` that change no mapping, severity, control or mitigation text. |
+
 ## Pull requests
 
 Describe what you added and why it belongs, and cite a source for non-obvious claims: vendor documentation, a CVE, an advisory, or a MITRE technique. CI checks must pass before merge.

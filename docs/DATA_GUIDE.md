@@ -349,6 +349,8 @@ Each technique object requires:
 | `name` | string | Technique name from MITRE |
 | `tactic` | string | Associated tactic (e.g., `Initial Access`, `Execution`, `Persistence`) |
 
+Mappings follow ATT&CK Enterprise v19. The `tactic` must be one the technique is listed under on its current ATT&CK page.
+
 Reference: https://attack.mitre.org/techniques/enterprise/
 
 #### Adding a New Threat

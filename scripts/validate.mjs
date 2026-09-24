@@ -15,6 +15,14 @@ const ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MITRE_PATTERN = /^T\d{4}(\.\d{3})?$/;
 const CONTROL_PATTERN = /^ctrl-[a-z0-9-]+-\d+$/;
 
+// ATT&CK Enterprise v19 tactics.
+const ATTACK_TACTICS = new Set([
+  'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution',
+  'Persistence', 'Privilege Escalation', 'Stealth', 'Defense Impairment',
+  'Credential Access', 'Discovery', 'Lateral Movement', 'Collection',
+  'Command and Control', 'Exfiltration', 'Impact',
+]);
+
 const isNonEmptyString = v => typeof v === 'string' && v.trim().length > 0;
 const isStringArray = v => Array.isArray(v) && v.every(isNonEmptyString);
 
@@ -81,7 +89,11 @@ for (const threat of threats.threats ?? []) {
     for (const t of threat.mitreTechniques) {
       if (!MITRE_PATTERN.test(t.id ?? '')) err(where, `MITRE id "${t.id}" must look like T1234 or T1234.001`);
       if (!isNonEmptyString(t.name)) err(where, `MITRE technique ${t.id} is missing a name`);
-      if (!isNonEmptyString(t.tactic)) err(where, `MITRE technique ${t.id} is missing a tactic`);
+      if (!isNonEmptyString(t.tactic)) {
+        err(where, `MITRE technique ${t.id} is missing a tactic`);
+      } else if (!ATTACK_TACTICS.has(t.tactic)) {
+        err(where, `MITRE technique ${t.id} has tactic "${t.tactic}", which is not an ATT&CK v19 tactic`);
+      }
     }
   }
 

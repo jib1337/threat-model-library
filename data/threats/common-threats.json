@@ -92,7 +92,7 @@
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Defense Evasion"
+          "tactic": "Initial Access"
         },
         {
           "id": "T1110",
@@ -139,12 +139,12 @@
         {
           "id": "T1574",
           "name": "Hijack Execution Flow",
-          "tactic": "Defense Evasion"
+          "tactic": "Stealth"
         },
         {
-          "id": "T1562",
-          "name": "Impair Defenses",
-          "tactic": "Defense Evasion"
+          "id": "T1685",
+          "name": "Disable or Modify Tools",
+          "tactic": "Defense Impairment"
         }
       ],
       "controls": [
@@ -450,7 +450,7 @@
         },
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         }
       ],
@@ -488,7 +488,7 @@
       "mitreTechniques": [
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         }
       ],
@@ -650,14 +650,19 @@
       ],
       "mitreTechniques": [
         {
-          "id": "T1562",
-          "name": "Impair Defenses",
-          "tactic": "Defense Evasion"
+          "id": "T1685.002",
+          "name": "Disable or Modify Cloud Log",
+          "tactic": "Defense Impairment"
         },
         {
-          "id": "T1070",
-          "name": "Indicator Removal",
-          "tactic": "Defense Evasion"
+          "id": "T1685.001",
+          "name": "Disable or Modify Windows Event Log",
+          "tactic": "Defense Impairment"
+        },
+        {
+          "id": "T1685.004",
+          "name": "Disable or Modify Linux Audit System Log",
+          "tactic": "Defense Impairment"
         }
       ],
       "controls": [
@@ -793,7 +798,7 @@
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Defense Evasion"
+          "tactic": "Initial Access"
         }
       ],
       "controls": [
@@ -875,7 +880,17 @@
         {
           "id": "T1070",
           "name": "Indicator Removal",
-          "tactic": "Defense Evasion"
+          "tactic": "Stealth"
+        },
+        {
+          "id": "T1685.005",
+          "name": "Clear Windows Event Logs",
+          "tactic": "Defense Impairment"
+        },
+        {
+          "id": "T1685.006",
+          "name": "Clear Linux or Mac System Logs",
+          "tactic": "Defense Impairment"
         }
       ],
       "controls": [
@@ -912,7 +927,7 @@
       "mitreTechniques": [
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         }
       ],
@@ -1271,7 +1286,7 @@
       "mitreTechniques": [
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         }
       ],
@@ -1551,7 +1566,7 @@
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Defense Evasion"
+          "tactic": "Initial Access"
         },
         {
           "id": "T1110",
@@ -1601,7 +1616,7 @@
         {
           "id": "T1550.001",
           "name": "Application Access Token",
-          "tactic": "Defense Evasion"
+          "tactic": "Lateral Movement"
         }
       ],
       "controls": [
@@ -1689,7 +1704,7 @@
         },
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         }
       ],
@@ -1773,7 +1788,7 @@
         {
           "id": "T1027",
           "name": "Obfuscated Files or Information",
-          "tactic": "Defense Evasion"
+          "tactic": "Stealth"
         },
         {
           "id": "T1567",
@@ -2087,13 +2102,13 @@
       "mitreTechniques": [
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         },
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Defense Evasion"
+          "tactic": "Stealth"
         }
       ],
       "controls": [
@@ -2181,7 +2196,7 @@
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Defense Evasion"
+          "tactic": "Stealth"
         }
       ],
       "controls": [
@@ -2219,7 +2234,7 @@
       "mitreTechniques": [
         {
           "id": "T1530",
-          "name": "Data from Cloud Storage Object",
+          "name": "Data from Cloud Storage",
           "tactic": "Collection"
         },
         {

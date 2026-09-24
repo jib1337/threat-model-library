@@ -319,7 +319,7 @@
       },
       "threatMitigations": {
         "prompt-injection": [
-          "Enable responsible AI content filters on Language and Translator service endpoints",
+          "Screen user prompts and grounding documents with Azure AI Content Safety Prompt Shields before model calls",
           "Implement input validation and sanitization on all API requests before forwarding to AI Services",
           "Use Azure AI Content Safety API as a pre-processing layer to screen inputs"
         ],
@@ -622,7 +622,7 @@
       ],
       "threatContext": {
         "unauthorized-access": "Access key exposure in connection strings, non-SSL port enabled, VNet integration bypass, Entra ID authentication misconfiguration",
-        "cache-poisoning": "Session data manipulation, SLAVEOF command for replication abuse, key injection via application vulnerabilities",
+        "cache-poisoning": "Session data manipulation, key injection via application vulnerabilities, cache writes using leaked access keys",
         "data-exfiltration": "RDB persistence file access, Redis BGSAVE export, key enumeration via SCAN/KEYS, geo-replication to attacker-controlled cache"
       },
       "threatMitigations": {
@@ -633,9 +633,8 @@
           "Use Azure Policy to enforce TLS minimum version and disable non-SSL ports"
         ],
         "cache-poisoning": [
-          "Disable dangerous Redis commands (SLAVEOF, CONFIG, DEBUG) via server configuration",
+          "Disable access-key authentication and use Microsoft Entra ID with custom data access policies to restrict write commands",
           "Validate and sanitize all application input before writing to cache keys",
-          "Use Redis ACLs to restrict command execution per user",
           "Enable Azure Monitor alerts for unexpected replication or bulk write operations"
         ],
         "data-exfiltration": [
@@ -734,7 +733,7 @@
       "threatMitigations": {
         "bucket-misconfiguration": [
           "Disable anonymous blob access at the storage account level via Azure Policy",
-          "Use Azure Policy to enforce disallowPublicAccess on all storage accounts",
+          "Issue only short-lived user delegation SAS tokens and configure a SAS expiration policy on each storage account",
           "Disable shared key authorization and require Entra ID RBAC for data access",
           "Enable Microsoft Defender for Storage to detect public access misconfigurations"
         ],
@@ -840,7 +839,7 @@
       "threatMitigations": {
         "bucket-misconfiguration": [
           "Disable anonymous blob access at the storage account level via Azure Policy",
-          "Use hierarchical namespace ACLs with explicit deny entries for sensitive directories",
+          "Grant POSIX ACLs on sensitive directories only to Entra ID security groups and set default ACLs so new children inherit restrictive permissions",
           "Enable Microsoft Defender for Storage to detect public access misconfigurations",
           "Disable shared key authorization and enforce Entra ID RBAC for all data access"
         ],
@@ -1298,7 +1297,7 @@
           "Enable Privileged Identity Management (PIM) for just-in-time activation of all directory and Azure roles",
           "Configure admin consent workflow to prevent unauthorized application consent grant attacks",
           "Restrict Global Administrator role to a maximum of two break-glass accounts with hardware FIDO2 keys",
-          "Use Azure Policy and Conditional Access to require MFA and compliant devices for all privileged role activations"
+          "Require MFA or a Conditional Access authentication context on activation in PIM role settings for all privileged roles"
         ],
         "credential-theft": [
           "Enforce phishing-resistant MFA (FIDO2 security keys or certificate-based auth) for all users via Conditional Access",
@@ -1494,7 +1493,7 @@
       "threatMitigations": {
         "privilege-escalation": [
           "Use system-assigned identities tied to a single resource instead of shared user-assigned identities",
-          "Restrict IMDS access on VMs via network-level controls or NSG rules on the metadata endpoint",
+          "Restrict IMDS access inside the guest OS with host firewall rules (Windows Firewall, iptables owner match) limited to processes that need tokens; NSGs cannot filter IMDS traffic",
           "Scope RBAC role assignments to specific resource groups or resources instead of subscriptions",
           "Enable Microsoft Defender for Resource Manager to detect identity abuse patterns"
         ],
@@ -1563,7 +1562,7 @@
           "Segment workloads into dedicated subnets with NSG rules restricting inter-subnet traffic",
           "Deploy Azure Firewall in hub-spoke topology for east-west traffic inspection",
           "Use Network Security Groups with deny-all default and explicit allow rules per subnet",
-          "Enable Microsoft Defender for Resource Manager to detect network pivoting attempts"
+          "Enable VNet flow logs with Traffic Analytics and Defender for Servers to detect internal port scanning and anomalous east-west traffic"
         ],
         "misconfiguration": [
           "Use Azure Policy to enforce Private Endpoints for PaaS services and NSG association on subnets",
@@ -1703,7 +1702,7 @@
         "misconfiguration": "WAF in detection mode instead of prevention, deprecated SSL policy allowing weak ciphers, backend pool health probe misconfiguration, URL path-based routing exposing unintended backends",
         "dos-attack": "Connection draining abuse, backend pool exhaustion, HTTP/2 concurrent streams attack, slow HTTP attacks exhausting connections",
         "injection-attack": "Rewrite rules allowing header injection, request smuggling via HTTP/2 downgrading, URL manipulation bypassing path-based routing",
-        "network-misconfiguration": "Public IP without WAF, backend pool servers accessible directly bypassing gateway, NSG allowing traffic not from AppGW subnet, missing DDoS Protection Standard",
+        "network-misconfiguration": "Public IP without WAF, backend pool servers accessible directly bypassing gateway, NSG allowing traffic not from AppGW subnet, missing DDoS Network Protection",
         "sensitive-data-exposure": "WAF logs capturing sensitive request/response data, access logs containing authentication headers, SSL certificate private key exposure, backend health probe responses containing internal details, diagnostic logs with PII"
       },
       "threatMitigations": {
@@ -1714,7 +1713,7 @@
           "Configure custom health probes with expected response codes and body match strings"
         ],
         "dos-attack": [
-          "Enable DDoS Protection Standard on the Application Gateway VNet",
+          "Enable Azure DDoS Network Protection on the Application Gateway VNet",
           "Configure WAF custom rules for rate limiting per client IP",
           "Set connection draining timeout and request timeout to appropriate values",
           "Use autoscaling with maximum instance limits to absorb traffic spikes"
@@ -1727,7 +1726,7 @@
         ],
         "network-misconfiguration": [
           "Configure NSGs on backend subnets to only allow traffic from the Application Gateway subnet",
-          "Enable DDoS Protection Standard on the VNet containing the Application Gateway",
+          "Enable Azure DDoS Network Protection on the VNet containing the Application Gateway",
           "Use Private Link backends to prevent direct access bypassing the gateway",
           "Restrict the Application Gateway subnet NSG to allow only required ports (80, 443, 65200-65535)"
         ],
@@ -1899,7 +1898,6 @@
         ],
         "dos-attack": [
           "Use Azure DNS with its built-in anycast network and automatic scaling to absorb DNS query floods",
-          "Enable Azure DDoS Protection Standard on VNets hosting Azure DNS Private Resolver endpoints",
           "Configure Azure Monitor alerts on DNS query volume metrics to detect abnormal query patterns early"
         ],
         "unauthorized-access": [
@@ -1937,7 +1935,7 @@
       "threatMitigations": {
         "message-tampering": [
           "Use Entra ID RBAC authentication (Azure Service Bus Data Sender/Receiver) instead of SAS tokens to prevent token-based message manipulation",
-          "Enable duplicate detection on queues and topics to reject replayed or injected messages",
+          "Disable local (SAS) authentication on the namespace (disableLocalAuth) so only Entra ID principals can send",
           "Implement message signing and validation at the application layer to detect tampered message bodies",
           "Configure dead-letter queue monitoring with Azure Monitor alerts to detect poison message injection patterns"
         ],
@@ -2348,7 +2346,7 @@
         "batch-job-tampering": [
           "Restrict Batch account access using Azure RBAC to separate job submitters from pool administrators",
           "Enable Batch account diagnostic logging to detect unauthorized job definition or task command line changes",
-          "Use signed application packages to ensure only verified code is deployed to pool nodes",
+          "Restrict who can upload or activate Batch application package versions to the CI/CD identity and pin pools and tasks to explicit package versions",
           "Configure Azure Policy to audit Batch accounts for required security settings and logging configurations"
         ],
         "misconfiguration": [
@@ -2383,7 +2381,7 @@
         ],
         "container-escape": [
           "Configure container tasks to run as non-root users with read-only file systems where possible",
-          "Use pool isolation mode to ensure containers run on dedicated compute nodes without shared tenancy",
+          "Set containerHostBatchBindMounts on container tasks to mount only the Batch data paths each task needs, read-only where possible, instead of the whole node root directory",
           "Enable Microsoft Defender for Servers on Batch pool nodes to detect container breakout attempts",
           "Restrict container runtime configurations by disabling privileged mode and limiting Linux capabilities"
         ],
@@ -2394,7 +2392,7 @@
           "Enable Microsoft Defender for Servers on pool nodes to detect credential theft tools and IMDS abuse"
         ],
         "supply-chain-attack": [
-          "Use signed and versioned application packages uploaded to the Batch account from a trusted CI/CD pipeline",
+          "Use versioned application packages uploaded to the Batch account only from a trusted CI/CD pipeline",
           "Enable Microsoft Defender for Containers to scan container images referenced in task definitions for vulnerabilities",
           "Restrict container image sources to a private Azure Container Registry with content trust enabled",
           "Validate application package checksums before deployment and audit package version changes"
@@ -2556,7 +2554,7 @@
         "remote-command-execution": [
           "Enforce Entra ID authentication with MFA for all Bastion sessions via Conditional Access policies",
           "Restrict Bastion RBAC roles to designated administrators using Azure RBAC (Virtual Machine User Login, Virtual Machine Administrator Login)",
-          "Enable session recording via Microsoft Defender for Cloud to detect unauthorized command execution during RDP/SSH sessions",
+          "Enable Bastion Premium SKU session recording to a dedicated storage container using managed identity authentication, and restrict the Storage Blob Data Reader role on that container to reviewers",
           "Disable clipboard and file transfer features on the Bastion host when not required for operations"
         ],
         "credential-theft": [
@@ -2673,7 +2671,7 @@
           "Restrict Arc-enabled server connectivity to Azure through Azure Private Link with private endpoints",
           "Configure Azure Policy guest configurations to enforce security baselines on Arc-connected machines across clouds",
           "Enable Microsoft Defender for Servers on Arc-enabled machines to detect cross-environment attack patterns",
-          "Use Azure Arc resource bridge with managed identity authentication instead of service principal secrets for Kubernetes clusters"
+          "Onboard servers with a dedicated service principal holding only the Azure Connected Machine Onboarding role and a short-lived secret, and delete it after onboarding"
         ],
         "privilege-escalation": [
           "Restrict Azure RBAC role assignments on Arc-enabled resources using Entra ID Privileged Identity Management with time-bound access",
@@ -2685,7 +2683,7 @@
           "Deploy Arc-enabled servers with private endpoints to prevent management plane traffic from traversing public networks",
           "Configure NSGs and host-based firewalls on Arc-connected machines to restrict inbound connections to required management ports",
           "Enable Microsoft Defender for Servers on all Arc-enabled machines to detect lateral movement patterns across hybrid environments",
-          "Use Azure Arc network segmentation by assigning machines to separate resource groups with distinct RBAC boundaries"
+          "Scope Run Command and Azure Connected Machine Resource Administrator role assignments to individual machines or small resource groups so one compromised operator identity cannot reach every hybrid server"
         ],
         "misconfiguration": [
           "Use Azure Policy guest configuration assignments to enforce OS-level security baselines (CIS, STIG) on Arc-connected machines",
@@ -2709,7 +2707,7 @@
           "Restrict Run Command permissions via Azure RBAC to dedicated operations security groups only",
           "Use Azure Policy to limit which VM extensions can be deployed on Arc-enabled servers via an allowlist",
           "Enable Microsoft Sentinel analytics rules to detect suspicious Run Command and extension deployment activity on Arc resources",
-          "Configure custom script execution to require approval workflows using Azure Automation with Entra ID authentication"
+          "Set a local extension allowlist (azcmagent config set extensions.allowlist) or monitor mode on sensitive servers to block Run Command and Custom Script extensions, which Azure-side Owners cannot override"
         ],
         "unpatched-vulnerabilities": [
           "Enable Azure Update Manager for Arc-enabled servers to automate OS and application patching across hybrid environments",

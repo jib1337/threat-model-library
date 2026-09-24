@@ -172,7 +172,7 @@
           "Use Container-Optimized OS or Shielded VMs for reduced attack surface and verified boot"
         ],
         "ssrf-attack": [
-          "Enforce the Metadata-Flavor: Google header on metadata server requests (blocks many SSRF vectors)",
+          "Attach a dedicated least-privilege service account (not the Compute Engine default SA with Editor) so a stolen metadata token has minimal scope",
           "Restrict application-level outbound requests with allowlisted destinations",
           "Use VPC Service Controls to prevent metadata-retrieved credentials from accessing resources outside the perimeter",
           "Validate and sanitize user-supplied URLs at the application layer before issuing server-side requests"
@@ -244,16 +244,15 @@
         "dos-attack"
       ],
       "threatContext": {
-        "container-escape": "Sandbox escape attempts via gVisor vulnerabilities, metadata service access for credential theft (http://metadata.google.internal), /proc filesystem access in misconfigured containers",
+        "container-escape": "Sandbox escape attempts against the gVisor user-space kernel (first-generation services) or the Linux microVM boundary (second-generation services and jobs), kernel exploit chains launched from a compromised container process",
         "misconfiguration": "Unauthenticated service endpoints (allUsers invoker), overly permissive ingress settings, missing VPC connector for internal resources, excessive CPU/memory limits enabling cryptomining",
-        "unauthorized-access": "Public service URLs without IAM authentication, service-to-service invocation without proper identity verification, exposed Cloud Run Admin API",
+        "unauthorized-access": "Public service URLs without IAM authentication, service-to-service invocation without proper identity verification, exposed Cloud Run Admin API, service account token theft from the metadata server (http://metadata.google.internal) via SSRF",
         "dos-attack": "Max instances exhaustion, request timeout exploitation, concurrent request limit abuse, cold start amplification through traffic bursts"
       },
       "threatMitigations": {
         "container-escape": [
-          "Use Cloud Run's built-in gVisor sandbox which provides kernel-level isolation by default",
+          "Isolate untrusted workloads in separate Cloud Run services with dedicated least-privilege service accounts, relying on the per-instance sandbox (gVisor on first-generation, a microVM on second-generation services and jobs) for kernel isolation",
           "Run containers as non-root by specifying a USER directive in the Dockerfile",
-          "Avoid mounting sensitive paths and disable /proc access where not required",
           "Use Artifact Analysis to scan container images for known vulnerabilities before deployment"
         ],
         "misconfiguration": [
@@ -305,8 +304,7 @@
       "threatMitigations": {
         "prompt-injection": [
           "Enable Vertex AI Safety Settings to configure content filtering thresholds per harm category",
-          "Use Vertex AI Grounding to constrain model responses to verified data sources and reduce hallucination",
-          "Implement Vertex AI Model Monitoring to detect anomalous input patterns indicative of injection attempts",
+          "Screen prompts and responses with Model Armor to detect prompt injection and jailbreak attempts",
           "Isolate user-provided input from system instructions using structured API request formats with separate content roles"
         ],
         "ai-training-data-poisoning": [
@@ -729,7 +727,7 @@
       ],
       "threatContext": {
         "unauthorized-access": "Redis AUTH password exposure, missing IAM-based authentication, VPC network allowing broad access, Memcached without SASL",
-        "cache-poisoning": "Redis command injection for key manipulation, session data tampering, SLAVEOF replication to rogue instance",
+        "cache-poisoning": "Redis command injection for key manipulation, session data tampering, cache writes from any client able to reach an instance without AUTH",
         "data-exfiltration": "Redis BGSAVE/RDB export, key enumeration via SCAN, replication stream capture, Memcached dump via stats commands"
       },
       "threatMitigations": {
@@ -740,7 +738,7 @@
           "Enable in-transit encryption (TLS) for Memorystore Redis to prevent credential sniffing on the network"
         ],
         "cache-poisoning": [
-          "Rename or disable dangerous Redis commands (SLAVEOF, REPLICAOF, CONFIG, DEBUG) via Memorystore Redis configuration",
+          "Enable AUTH (or IAM authentication on Memorystore for Redis Cluster) and in-transit encryption so only the application identity can write keys",
           "Enable in-transit encryption to prevent network-level command injection into Redis connections",
           "Use separate Memorystore instances for different trust levels (session store vs. application cache) to limit blast radius",
           "Monitor Redis command metrics in Cloud Monitoring for unusual write patterns or unexpected command usage"
@@ -931,7 +929,7 @@
         "kubernetes-secrets-exposure"
       ],
       "threatContext": {
-        "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, gVisor/Sandbox escape on GKE Autopilot, kernel exploit escalation via CAP_SYS_ADMIN",
+        "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, gVisor escape from GKE Sandbox pods, kernel exploit escalation via CAP_SYS_ADMIN",
         "misconfiguration": "Workload Identity not enabled (legacy metadata API exposed), Pod Security Standards not enforced, public GKE cluster endpoint, overly permissive RBAC bindings, missing network policies",
         "unauthorized-access": "Metadata server credential theft (http://metadata.google.internal), exposed Kubernetes Dashboard, default compute service account with broad permissions, anonymous RBAC authentication",
         "privilege-escalation": "ServiceAccount token abuse, node service account impersonation, create pods/exec permission abuse for cluster takeover, hostPID namespace sharing for process injection",
@@ -942,7 +940,7 @@
       },
       "threatMitigations": {
         "container-escape": [
-          "Use GKE Autopilot mode which enforces gVisor sandboxing and prevents privileged containers by default",
+          "Use GKE Autopilot, which blocks privileged pods and host namespaces by default, and set runtimeClassName: gvisor to run untrusted pods in GKE Sandbox",
           "Enable GKE Sandbox (gVisor) on Standard clusters for untrusted workloads to add kernel-level isolation",
           "Enforce Pod Security Standards at the namespace level using GKE built-in PodSecurity admission controller",
           "Disable hostPath volume mounts and privileged mode via GKE Policy Controller constraints"
@@ -1587,7 +1585,7 @@
         "enforcesEncryption": true
       },
       "threatContext": {
-        "cache-poisoning": "Cache key manipulation via query parameters, Host header injection for cached malicious responses, cache poisoning through Vary header abuse, signed URL/cookie key compromise",
+        "cache-poisoning": "Cache key manipulation via query parameters, Host header injection for cached malicious responses, cache poisoning through Vary header abuse",
         "misconfiguration": "Caching sensitive user-specific responses, missing cache control headers allowing stale data, origin shield misconfiguration, negative caching exposing errors",
         "dos-attack": "Cache bypass forcing origin requests, large object requests exhausting origin bandwidth, cache invalidation abuse, origin connection pool exhaustion",
         "sensitive-data-exposure": "Cached responses containing authorization tokens, Cloud Logging with PII in URLs, signed URL secrets exposure, error responses revealing backend architecture"
@@ -1595,7 +1593,6 @@
       "threatMitigations": {
         "cache-poisoning": [
           "Configure Cloud CDN cache key policies to include only necessary query parameters and headers, excluding attacker-controllable values",
-          "Use Cloud CDN signed URLs or signed cookies with short expiration times and strong signing keys stored in Secret Manager",
           "Set appropriate Cache-Control and Vary headers at the origin to prevent caching of user-specific or dynamic responses",
           "Enable Cloud CDN cache invalidation logging and monitor for unauthorized invalidation requests via Cloud Audit Logs"
         ],

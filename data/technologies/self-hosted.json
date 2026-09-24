@@ -365,7 +365,7 @@
         "sensitive-data-exposure": "Conversation context persisted in memory across requests, model weights containing fine-tuning data, system prompts visible via API inspection",
         "dos-attack": "Large context window requests exhausting GPU memory, concurrent model loading exhausting VRAM, model pulling consuming disk space",
         "unauthorized-access": "No authentication by default on API endpoint, any network-accessible client can invoke models via /api/generate and /api/chat, pull/delete models, list available models revealing infrastructure",
-        "ai-model-extraction": "Direct model download via /api/pull endpoint, model file copying via /api/copy, model weight extraction from local storage directory (~/.ollama/models)",
+        "ai-model-extraction": "Model exfiltration via /api/push to an attacker-controlled registry, model file copying via /api/copy, model weight extraction from local storage directory (~/.ollama/models)",
         "unpatched-vulnerabilities": "Ollama server CVEs (path traversal, SSRF via model file references), rapidly evolving codebase with potential security gaps"
       },
       "threatMitigations": {
@@ -851,7 +851,7 @@
         "backup-exposure": [
           "Encrypt pg_basebackup and pg_dump output using gpg or openssl before writing to backup storage",
           "Restrict WAL archive directory permissions and use archive_command with encryption for continuous archiving",
-          "Store backup credentials in .pgpass with 0600 permissions and rotate replication slot passwords regularly"
+          "Store backup credentials in .pgpass with 0600 permissions and rotate replication role passwords regularly"
         ],
         "unpatched-vulnerabilities": [
           "Subscribe to the pgsql-announce mailing list and apply minor version security updates promptly",
@@ -903,7 +903,7 @@
         ],
         "backup-exposure": [
           "Encrypt mysqldump and xtrabackup output with gpg or openssl before writing to backup storage",
-          "Restrict binary log file permissions to the mysql system user and set expire_logs_days to limit retention",
+          "Restrict binary log file permissions to the mysql system user and set binlog_expire_logs_seconds to limit retention",
           "Store backup credentials in mysql_config_editor encrypted login path files instead of plaintext scripts"
         ],
         "unpatched-vulnerabilities": [
@@ -1043,7 +1043,7 @@
         "nosql-injection": [
           "Disable server-side JavaScript execution by setting security.javascriptEnabled: false in mongod.conf",
           "Use MongoDB driver query builders instead of string concatenation and validate all query operator inputs",
-          "Restrict $where, $function, and mapReduce operations via roles that exclude the anyAction privilege"
+          "Grant application users only the built-in read/readWrite roles on required databases, never dbAdmin, root or anyAction"
         ],
         "unauthorized-access": [
           "Enable authentication with --auth flag and configure SCRAM-SHA-256 as the default mechanism in mongod.conf",
@@ -1645,8 +1645,8 @@
       },
       "threatMitigations": {
         "bucket-misconfiguration": [
-          "Enforce private bucket policies by default and audit all bucket policies with mc admin policy list for anonymous or public access",
-          "Disable anonymous access at the server level with MINIO_BROWSER=off for headless deployments or restrict console access",
+          "Set bucket anonymous policies to none with mc anonymous set none and audit each bucket with mc anonymous get",
+          "Keep the S3 API and Console on private networks, and disable the Console with MINIO_BROWSER=off on headless deployments",
           "Use MinIO IAM policies with explicit deny rules for s3:GetObject on sensitive buckets to prevent policy bypass"
         ],
         "data-exfiltration": [
@@ -2002,7 +2002,7 @@
           "Use multi-stage builds and never embed credentials in Dockerfiles or use --build-arg for secrets"
         ],
         "unpatched-vulnerabilities": [
-          "Enable Docker Engine live-restore and apply security updates promptly from Docker's official repository",
+          "Apply Docker Engine security updates promptly from Docker's official package repository",
           "Monitor Docker security advisories and containerd/runc CVEs and update within SLA",
           "Use minimal base images (distroless, Alpine) to reduce the vulnerability surface in container images"
         ]
@@ -2176,7 +2176,7 @@
         "container-escape": [
           "Enforce restricted Pod Security Admission on downstream clusters managed by Rancher",
           "Use Rancher hardening guides to deploy RKE2/K3s clusters with CIS-compliant security profiles",
-          "Restrict Rancher-deployed system workloads to dedicated system namespaces with appropriate PSPs or SCCs"
+          "Restrict Rancher-deployed system workloads to dedicated system namespaces with appropriate Pod Security Admission levels or SCCs"
         ],
         "misconfiguration": [
           "Change the default admin password immediately after installation and enforce strong password policies",
@@ -2850,7 +2850,7 @@
         "network-misconfiguration": [
           "Bind management and stats frontends to 127.0.0.1 or a dedicated management VLAN interface",
           "Enforce TLS 1.2+ with strong cipher suites using ssl-default-bind-ciphersuites and ssl-default-bind-options",
-          "Validate X-Forwarded-For headers using forwardfor with the if-none option and trusted source ACLs"
+          "Strip client-supplied X-Forwarded-For (http-request del-header X-Forwarded-For) before option forwardfor and trust it only from known upstream proxies"
         ],
         "unpatched-vulnerabilities": [
           "Subscribe to the HAProxy security mailing list and monitor haproxy.org for security advisories",
@@ -3245,9 +3245,8 @@
           "Hide version information by setting version \"none\" in named.conf options and disable version.bind queries"
         ],
         "dos-attack": [
-          "Enable rate-limiting in BIND using the rate-limit statement to mitigate DNS amplification and query flooding",
-          "Set max-clients-per-query and max-cache-size to prevent resource exhaustion from query floods",
-          "Use Response Rate Limiting (RRL) to throttle identical responses and block reflection/amplification attacks"
+          "Use Response Rate Limiting (RRL) to throttle identical responses and block reflection/amplification attacks",
+          "Set max-clients-per-query and max-cache-size to prevent resource exhaustion from query floods"
         ],
         "cache-poisoning": [
           "Enable DNSSEC validation by setting dnssec-validation auto in named.conf options",
@@ -3427,9 +3426,9 @@
       },
       "threatMitigations": {
         "stream-hijacking": [
-          "Enable Kafka ACLs (authorizer.class.name=kafka.security.authorizer.AclAuthorizer) to restrict consumer group and topic access",
+          "Enable the Kafka ACL authorizer (StandardAuthorizer for KRaft, AclAuthorizer for legacy ZooKeeper clusters) with allow.everyone.if.no.acl.found=false",
           "Use SASL/SCRAM or mTLS authentication on all listeners to prevent unauthenticated consumer group joins",
-          "Monitor consumer group membership changes and offset resets via Kafka audit logs or JMX metrics"
+          "Monitor consumer group membership changes and offset resets via the authorizer log (kafka.authorizer.logger) and JMX metrics"
         ],
         "message-tampering": [
           "Enable SASL authentication on all broker listeners to prevent unauthenticated producer writes",
@@ -3534,7 +3533,7 @@
       "threatMitigations": {
         "message-tampering": [
           "Configure per-destination authorization entries in activemq.xml to restrict write access per user/group",
-          "Enable message audit logging via the broker audit plugin to detect unauthorized message modifications",
+          "Enable ActiveMQ audit logging to record JMX and web console management actions such as message deletion, move and resend, and forward the log to a SIEM",
           "Use advisory message filtering to prevent untrusted clients from subscribing to broker internal events"
         ],
         "unauthorized-access": [
@@ -3592,7 +3591,7 @@
         "message-tampering": [
           "Enforce topic-level produce permissions using Pulsar's built-in authorization with JWT or Athenz tokens",
           "Enable TLS encryption for client-to-broker and broker-to-BookKeeper connections to prevent in-transit manipulation",
-          "Use schema enforcement (isAllowAutoUpdateSchema=false) to reject messages that do not match the registered schema"
+          "Enable schemaValidationEnforced and disable isAllowAutoUpdateSchema on namespaces so producers without the registered schema, or with an unregistered schema version, are rejected"
         ],
         "unauthorized-access": [
           "Enable JWT or mTLS authentication on broker and proxy using authenticationEnabled and authenticationProviders in broker.conf",
@@ -3632,7 +3631,7 @@
         "unpatched-vulnerabilities"
       ],
       "threatContext": {
-        "workflow-manipulation": "Workflow definition injection via tctl or SDK, malicious activity code execution, signal/query handler exploitation, child workflow spawning abuse, namespace isolation bypass",
+        "workflow-manipulation": "Rogue workers polling task queues to hijack or tamper with workflow and activity tasks, unauthenticated frontend gRPC access (port 7233) to start, signal or terminate workflows, malicious activity code execution, namespace isolation bypass",
         "misconfiguration": "Frontend service exposed without mTLS, missing namespace-level access controls, permissive search attributes exposing workflow data, Temporal Web UI accessible without authentication, history service retention misconfiguration",
         "excessive-permissions": "Worker permissions allowing access to unintended task queues, namespace admin granted broadly, cross-namespace workflow access, unrestricted activity type registration"
       },
@@ -3641,7 +3640,7 @@
           "Enforce Temporal namespace-level access controls to restrict which users and workers can execute or modify workflows",
           "Use Temporal's authorizer plugin to implement custom RBAC on workflow start, signal, and query operations",
           "Validate workflow inputs at the activity level using schema validation before processing",
-          "Enable Temporal's audit logging (visibility) to track all workflow definition changes and executions"
+          "Enable mTLS for frontend and internode traffic so only clients and workers with trusted certificates can connect"
         ],
         "misconfiguration": [
           "Require mTLS for all Temporal frontend, history, and matching service communication",
@@ -3685,7 +3684,7 @@
         "workflow-manipulation": [
           "Restrict DAGs folder write access to authorized CI/CD pipelines only, never allow direct filesystem uploads",
           "Enable Airflow RBAC and assign per-DAG access controls so users can only trigger or view their own DAGs",
-          "Use DAG serialization (dag_serialization=True) to prevent untrusted code execution on the scheduler",
+          "Run a standalone DAG processor isolated from the scheduler and restrict edit access to Variables, Connections and DAG run conf to trusted roles",
           "Implement Git-based DAG deployment with code review and approval workflows before DAGs reach production"
         ],
         "injection-attack": [
@@ -3759,10 +3758,10 @@
           "Exclude credentials from workflow exports by default and review exported JSON before sharing"
         ],
         "ssrf-attack": [
-          "Configure N8N_BLOCK_ENV_ACCESS_IN_NODE=true to prevent environment variable leakage via Code nodes",
+          "Enable SSRF protection (N8N_SSRF_PROTECTION_ENABLED=true with N8N_SSRF_BLOCKED_IP_RANGES=default) to block private, link-local and metadata addresses, including redirect targets",
           "Use network policies or firewall rules to block n8n from accessing internal metadata services (169.254.169.254)",
           "Restrict HTTP Request node destinations via an allowlist proxy or egress firewall rules",
-          "Disable the HTTP Request node's ability to follow redirects to internal addresses"
+          "Configure N8N_BLOCK_ENV_ACCESS_IN_NODE=true to prevent environment variable leakage via Code nodes"
         ]
       }
     },
@@ -3848,7 +3847,7 @@
           "Use Grafana provisioning via YAML files in version control for repeatable, auditable configuration"
         ],
         "ssrf-attack": [
-          "Restrict data source proxy access by configuring Grafana's IP deny list to block internal/private ranges (data_source_proxy_whitelist)",
+          "Restrict data source URLs to approved hosts with the [security] data_source_proxy_whitelist allow-list setting",
           "Run the Grafana image renderer in a sandboxed container with no access to internal networks",
           "Validate and restrict webhook notification URLs in alerting contact points to approved external endpoints only",
           "Use network policies to limit Grafana's outbound connections to only known data source endpoints"
@@ -4811,7 +4810,7 @@
         ],
         "ssrf-attack": [
           "Disable or restrict the url(), remote(), and s3()/gcs()/azure() table functions to admin profiles only",
-          "Configure allowed_hosts or restrict outbound network access from the ClickHouse server via firewall rules",
+          "Configure remote_url_allow_hosts or restrict outbound network access from the ClickHouse server via firewall rules",
           "Audit dictionary source configurations to ensure they do not reference internal HTTP endpoints or metadata services"
         ],
         "backup-exposure": [
@@ -4981,8 +4980,8 @@
         ],
         "container-escape": [
           "Disable privileged container deployment in Portainer using per-environment security settings",
-          "Block bind mounts to sensitive host paths (/var/run/docker.sock, /etc, /var/lib) via Portainer's resource controls",
-          "Restrict capability additions and host namespace access through Portainer stack deployment policies"
+          "Enable the Docker security policy options that hide bind mounts, host PID 1, device mappings, container capabilities, sysctl and security-opt from non-administrators, since Portainer cannot block individual host paths such as /var/run/docker.sock",
+          "Limit Portainer administrator accounts, which bypass environment security settings, to a small group authenticated through SSO with MFA"
         ],
         "supply-chain-attack": [
           "Restrict App Templates to curated internal template repositories and remove default public templates",

@@ -1797,7 +1797,7 @@
         "misconfiguration": "Publishable keys used where secret keys are required, webhook signature verification not implemented, overly permissive API key scopes (full access instead of restricted keys), test mode keys accidentally used in production, missing idempotency keys causing duplicate charges",
         "unauthorized-access": "Unauthorized access to Stripe Dashboard enabling refund abuse, Connect account impersonation via insufficient platform verification, customer portal session hijacking for subscription manipulation, unauthorized access to Financial Connections bank data",
         "credential-theft": "Stripe secret API keys committed to source code repositories, webhook signing secrets exposed in server logs, Connect OAuth client secrets in environment variables, restricted API keys with excessive permissions stored in CI/CD pipelines",
-        "injection-attack": "Server-side request forgery via webhook URL manipulation, metadata field injection for stored XSS in Dashboard, malicious custom account data in Connect onboarding, Stripe CLI plugin command injection"
+        "injection-attack": "Forged webhook events posted to endpoints that skip signature verification, metadata field injection for stored XSS in Dashboard, malicious custom account data in Connect onboarding, Stripe CLI plugin command injection"
       },
       "threatMitigations": {
         "sensitive-data-exposure": [
@@ -1825,10 +1825,9 @@
           "Audit active API keys in Stripe Dashboard > Developers and remove keys for decommissioned services"
         ],
         "injection-attack": [
-          "Validate all webhook endpoint URLs server-side and restrict outbound requests to known Stripe IP ranges",
+          "Verify the Stripe-Signature header on every webhook with the endpoint secret (constructEvent) and reject events outside the timestamp tolerance",
           "Sanitize all user-supplied data before storing it in Stripe metadata fields to prevent stored XSS",
-          "Validate and sanitize all Connect onboarding data (business details, bank accounts) before submitting to Stripe API",
-          "Use Stripe Radar rules to detect and block suspicious payment patterns and injection attempts"
+          "Validate and sanitize all Connect onboarding data (business details, bank accounts) before submitting to Stripe API"
         ]
       }
     },
@@ -1858,8 +1857,7 @@
         "nosql-injection": [
           "Use MongoDB driver parameterized queries and avoid passing user input directly into $where, $expr, or aggregation $lookup stages",
           "Enable MongoDB Atlas Schema Validation to enforce document structure and reject malformed inputs",
-          "Disable server-side JavaScript execution ($where, mapReduce) unless explicitly required by the application",
-          "Use MongoDB Queryable Encryption or Client-Side Field Level Encryption to protect sensitive query parameters"
+          "Disable server-side JavaScript execution ($where, mapReduce) unless explicitly required by the application"
         ],
         "unauthorized-access": [
           "Configure Atlas IP Access List to restrict database connections to specific application server IP ranges or VPC peering",

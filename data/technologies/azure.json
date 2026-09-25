@@ -2698,7 +2698,7 @@
           "Deploy Arc-enabled servers with private endpoints to prevent management plane traffic from traversing public networks",
           "Configure NSGs and host-based firewalls on Arc-connected machines to restrict inbound connections to required management ports",
           "Enable Microsoft Defender for Servers on all Arc-enabled machines to detect lateral movement patterns across hybrid environments",
-          "Scope Run Command and Azure Connected Machine Resource Administrator role assignments to individual machines or small resource groups so one compromised operator identity cannot reach every hybrid server"
+          "Scope Run Command and Azure Connected Machine Resource Administrator roles to single machines or small resource groups so one compromised operator cannot reach every hybrid server"
         ],
         "misconfiguration": [
           "Use Azure Policy guest configuration assignments to enforce OS-level security baselines (CIS, STIG) on Arc-connected machines",
@@ -2722,7 +2722,7 @@
           "Restrict Run Command permissions via Azure RBAC to dedicated operations security groups only",
           "Use Azure Policy to limit which VM extensions can be deployed on Arc-enabled servers via an allowlist",
           "Enable Microsoft Sentinel analytics rules to detect suspicious Run Command and extension deployment activity on Arc resources",
-          "Set a local extension allowlist (azcmagent config set extensions.allowlist) or monitor mode on sensitive servers to block Run Command and Custom Script extensions, which Azure-side Owners cannot override"
+          "Set a local extension allowlist (azcmagent config set extensions.allowlist) or monitor mode on sensitive servers to block Run Command and Custom Script, which Azure Owners cannot override"
         ],
         "unpatched-vulnerabilities": [
           "Enable Azure Update Manager for Arc-enabled servers to automate OS and application patching across hybrid environments",

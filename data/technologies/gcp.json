@@ -259,7 +259,7 @@
       },
       "threatMitigations": {
         "container-escape": [
-          "Isolate untrusted workloads in separate Cloud Run services with dedicated least-privilege service accounts, relying on the per-instance sandbox (gVisor on first-generation, a microVM on second-generation services and jobs) for kernel isolation",
+          "Isolate untrusted workloads in separate Cloud Run services with least-privilege service accounts, relying on the per-instance sandbox (gVisor on gen1, a microVM on gen2) for kernel isolation",
           "Run containers as non-root by specifying a USER directive in the Dockerfile",
           "Use Artifact Analysis to scan container images for known vulnerabilities before deployment"
         ],

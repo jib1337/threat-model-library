@@ -5001,7 +5001,7 @@
         ],
         "container-escape": [
           "Disable privileged container deployment in Portainer using per-environment security settings",
-          "Enable the Docker security policy options that hide bind mounts, host PID 1, device mappings, container capabilities, sysctl and security-opt from non-administrators, since Portainer cannot block individual host paths such as /var/run/docker.sock",
+          "Enable Docker security settings that deny non-admins bind mounts, host PID, devices, capabilities, sysctls and security-opt, as Portainer cannot block paths like /var/run/docker.sock",
           "Limit Portainer administrator accounts, which bypass environment security settings, to a small group authenticated through SSO with MFA"
         ],
         "supply-chain-attack": [

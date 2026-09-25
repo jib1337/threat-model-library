@@ -15,6 +15,11 @@ const ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MITRE_PATTERN = /^T\d{4}(\.\d{3})?$/;
 const CONTROL_PATTERN = /^ctrl-[a-z0-9-]+-\d+$/;
 
+// Exclusive upper bounds on technology-specific text, so the sidebar and
+// exports stay readable. Each threatMitigations entry is checked on its own.
+const MAX_THREAT_CONTEXT_LENGTH = 500;
+const MAX_THREAT_MITIGATION_LENGTH = 200;
+
 // ATT&CK Enterprise v19 tactics.
 const ATTACK_TACTICS = new Set([
   'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution',
@@ -206,6 +211,20 @@ for (const { file, path, data } of providers) {
         }
         if (!check(value)) err(sWhere, `${field}["${threatId}"] has the wrong shape`);
       }
+    }
+
+    for (const [threatId, text] of Object.entries(service.threatContext ?? {})) {
+      if (typeof text === 'string' && text.length >= MAX_THREAT_CONTEXT_LENGTH) {
+        err(sWhere, `threatContext["${threatId}"] is ${text.length} characters; it must be under ${MAX_THREAT_CONTEXT_LENGTH}`);
+      }
+    }
+    for (const [threatId, items] of Object.entries(service.threatMitigations ?? {})) {
+      if (!Array.isArray(items)) continue;
+      items.forEach((text, i) => {
+        if (typeof text === 'string' && text.length >= MAX_THREAT_MITIGATION_LENGTH) {
+          err(sWhere, `threatMitigations["${threatId}"][${i}] is ${text.length} characters; it must be under ${MAX_THREAT_MITIGATION_LENGTH}`);
+        }
+      });
     }
   }
 }

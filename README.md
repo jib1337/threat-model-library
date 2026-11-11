@@ -20,6 +20,8 @@ Node 20+ is the only requirement. There is nothing to install.
 
 ```bash
 npm run validate   # structure, vocabularies and cross-file references
+npm run compat     # changes since the last release that affect saved models, plus a suggested version bump
+npm run query      # look up a technology, threat, category or id without opening the large data files
 npm run build      # produce a release bundle in dist/
 ```
 

@@ -353,6 +353,14 @@ Each technique object requires:
 
 Mappings follow ATT&CK Enterprise v19. The `tactic` must be one the technique is listed under on its current ATT&CK page.
 
+The validator will check every mapping offline against a pinned copy of ATT&CK
+(`scripts/lib/attack-enterprise.json`, currently v19.2): the technique must exist and not be
+revoked or deprecated, `name` must match ATT&CK's name exactly (for a sub-technique, the
+sub-technique's own name, e.g. `Cloud Accounts` for `T1078.004`), and `tactic` must be one of the
+technique's tactics. To move to a newer ATT&CK release, download its
+`enterprise-attack-X.Y.json` from [attack-stix-data](https://github.com/mitre-attack/attack-stix-data/tree/master/enterprise-attack),
+run `node scripts/update-attack.mjs <file>`, and fix whatever `npm run validate` then reports.
+
 Reference: https://attack.mitre.org/techniques/enterprise/
 
 #### Adding a New Threat
@@ -569,7 +577,7 @@ Before committing changes, verify:
 - [ ] `category` is one of the valid categories
 - [ ] All `threatIds` exist in `common-threats.json`
 - [ ] `description` is concise but informative
-- [ ] `connectionSecurity.enforcesEncryption` is set for TLS-enforcing services (API gateways, CDNs, load balancers, WAFs)
+- [ ] `connectionSecurity.enforcesEncryption` is set only where the service itself terminates or mandates TLS on every connection through it (API gateways, CDNs, load balancers), not for pass-through inspection or private circuits that are unencrypted by default
 - [ ] `threatContext` keys match valid threat IDs in the technology's `threatIds` array
 - [ ] `threatContext` values are specific, actionable examples (not generic descriptions)
 - [ ] `threatContext` values are under 500 characters

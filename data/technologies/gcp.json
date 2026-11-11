@@ -1697,9 +1697,6 @@
         "dos-attack",
         "audit-logging-bypass"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "Security policy rules in preview mode, overly permissive IP allowlists, preconfigured WAF rules without tuning for false positives, missing rate limiting rules, default allow policy",
         "dos-attack": "Adaptive protection threshold bypass, rate limiting evasion through distributed sources, bot management bypass via header manipulation, rule priority exploitation",

@@ -1625,9 +1625,6 @@
         "dos-attack",
         "audit-logging-bypass"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "Rules in count mode instead of block, overly permissive IP sets, missing rate-based rules, regex patterns with bypass vulnerabilities, AWS managed rule groups without customization for application context",
         "dos-attack": "Rule evaluation limit exhaustion via complex requests, rate limiting bypass through distributed sources, WebACL capacity unit limits causing rule evaluation failures",
@@ -2537,9 +2534,6 @@
         "dos-attack",
         "unauthorized-access"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "Overly permissive stateful rule groups allowing unintended traffic, rule order misconfigurations causing bypass, missing domain list filtering, TLS inspection certificate mismanagement, default action set to pass instead of drop",
         "network-misconfiguration": "Incorrect route table configuration bypassing firewall endpoints, asymmetric routing causing packet drops, missing firewall endpoints in availability zones, VPC attachment misconfigurations allowing traffic to circumvent inspection",
@@ -3176,7 +3170,6 @@
         "lateral-movement"
       ],
       "connectionSecurity": {
-        "enforcesEncryption": true,
         "internalOnly": true
       },
       "threatContext": {

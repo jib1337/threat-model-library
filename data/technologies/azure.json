@@ -1803,9 +1803,6 @@
         "audit-logging-bypass",
         "dos-attack"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "Overly permissive application rules with wildcard FQDNs, DNAT rules exposing internal services, threat intelligence filtering disabled, missing TLS inspection for encrypted traffic",
         "network-misconfiguration": "Network rules allowing broad IP ranges, priority ordering allowing bypass rules, route table not forcing traffic through firewall, hub VNet peering without UDR",
@@ -1857,9 +1854,6 @@
         "dos-attack",
         "audit-logging-bypass"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "WAF policy in detection mode, OWASP rules disabled or with excessive exclusions, custom rules with bypass patterns, file upload limits not configured for application needs, bot protection disabled",
         "dos-attack": "Rate limiting rules not configured, request body inspection limits allowing payload attacks, rule set evaluation overhead causing latency under attack",
@@ -2617,20 +2611,17 @@
         "data-exfiltration",
         "misconfiguration"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "hybrid-infrastructure-attack": "BGP route hijacking via compromised edge router, ExpressRoute circuit abuse for cross-tenant access, Microsoft peering exploitation for O365/Azure PaaS access",
         "network-misconfiguration": "Overly broad route advertisements, missing route filters allowing unintended prefixes, private peering exposing internal networks, Global Reach enabling unintended inter-site connectivity",
         "lateral-movement": "Using ExpressRoute as pivot from on-premises to Azure, cross-region access via circuit redundancy, hub VNet access enabling spoke traversal",
         "data-exfiltration": "High-bandwidth dedicated channel for bulk data theft, unmonitored egress traffic, BGP manipulation redirecting traffic through attacker infrastructure",
-        "misconfiguration": "ExpressRoute Direct without MACSec encryption, missing connection monitoring, circuit authorization keys exposed, FastPath bypassing gateway security controls"
+        "misconfiguration": "Traffic unencrypted by default: no IPsec over private peering, ExpressRoute Direct ports without MACsec (MACsec is unavailable on provider circuits and covers only the link to Microsoft edge routers), missing connection monitoring, circuit authorization keys exposed, FastPath bypassing gateway security controls"
       },
       "threatMitigations": {
         "hybrid-infrastructure-attack": [
           "Configure BGP route filters to accept only expected prefixes and reject unauthorized route advertisements",
-          "Enable ExpressRoute circuit authorization keys with short expiration and restrict sharing to verified tenants only",
+          "Issue circuit authorization keys only to verified subscriptions and delete unused authorizations to revoke VNet link access",
           "Implement Network Watcher Connection Monitor to detect unexpected route changes and latency anomalies on the circuit",
           "Use ExpressRoute with Azure Firewall in the hub VNet to inspect and control all traffic traversing the private peering"
         ],
@@ -2655,8 +2646,8 @@
         "misconfiguration": [
           "Enable MACSec encryption on ExpressRoute Direct circuits to protect data in transit at the physical layer",
           "Configure ExpressRoute Connection Monitor in Network Watcher to detect circuit health degradation and failover issues",
-          "Store circuit authorization keys in Azure Key Vault and rotate them on a regular schedule",
-          "Use Azure Policy to enforce required ExpressRoute configurations including minimum TLS version and diagnostic settings"
+          "Hold unredeemed circuit authorization keys in Azure Key Vault and share them only through it; keys have no expiry setting, so revoke access by deleting the authorization",
+          "Encrypt end-to-end with IPsec over private peering via Azure VPN Gateway or Virtual WAN, since ExpressRoute traffic is unencrypted by default"
         ]
       }
     },
@@ -3094,7 +3085,6 @@
         "lateral-movement"
       ],
       "connectionSecurity": {
-        "enforcesEncryption": true,
         "internalOnly": true
       },
       "threatContext": {

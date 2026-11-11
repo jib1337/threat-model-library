@@ -4,6 +4,7 @@
 // Run with `npm run validate`. Exits non-zero on any error; warnings are
 // reported but do not fail the build.
 
+import { readFileSync } from 'fs';
 import { loadCatalogue } from './lib/load.mjs';
 
 const errors = [];
@@ -15,13 +16,16 @@ const ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MITRE_PATTERN = /^T\d{4}(\.\d{3})?$/;
 const CONTROL_PATTERN = /^ctrl-[a-z0-9-]+-\d+$/;
 
-// ATT&CK Enterprise v19 tactics.
-const ATTACK_TACTICS = new Set([
-  'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution',
-  'Persistence', 'Privilege Escalation', 'Stealth', 'Defense Impairment',
-  'Credential Access', 'Discovery', 'Lateral Movement', 'Collection',
-  'Command and Control', 'Exfiltration', 'Impact',
-]);
+// Exclusive upper bounds on technology-specific text, so the sidebar and
+// exports stay readable. Each threatMitigations entry is checked on its own.
+const MAX_THREAT_CONTEXT_LENGTH = 500;
+const MAX_THREAT_MITIGATION_LENGTH = 200;
+
+// Pinned ATT&CK Enterprise release: tactics plus every technique's name,
+// tactics and revoked/deprecated status. Regenerate with
+// scripts/update-attack.mjs when moving to a new ATT&CK version.
+const ATTACK = JSON.parse(readFileSync(new URL('./lib/attack-enterprise.json', import.meta.url), 'utf8'));
+const ATTACK_TACTICS = new Set(ATTACK.tactics);
 
 const isNonEmptyString = v => typeof v === 'string' && v.trim().length > 0;
 const isStringArray = v => Array.isArray(v) && v.every(isNonEmptyString);
@@ -92,7 +96,23 @@ for (const threat of threats.threats ?? []) {
       if (!isNonEmptyString(t.tactic)) {
         err(where, `MITRE technique ${t.id} is missing a tactic`);
       } else if (!ATTACK_TACTICS.has(t.tactic)) {
-        err(where, `MITRE technique ${t.id} has tactic "${t.tactic}", which is not an ATT&CK v19 tactic`);
+        err(where, `MITRE technique ${t.id} has tactic "${t.tactic}", which is not an ATT&CK v${ATTACK.version} tactic`);
+      }
+
+      if (!MITRE_PATTERN.test(t.id ?? '')) continue;
+      const known = ATTACK.techniques[t.id];
+      if (!known) {
+        err(where, `MITRE technique ${t.id} does not exist in ATT&CK v${ATTACK.version}`);
+      } else if (known.status) {
+        const hint = known.replacedBy ? `; use ${known.replacedBy} (${ATTACK.techniques[known.replacedBy]?.name})` : '';
+        err(where, `MITRE technique ${t.id} (${known.name}) is ${known.status} in ATT&CK v${ATTACK.version}${hint}`);
+      } else {
+        if (isNonEmptyString(t.name) && t.name !== known.name) {
+          err(where, `MITRE technique ${t.id} is named "${t.name}"; ATT&CK v${ATTACK.version} calls it "${known.name}"`);
+        }
+        if (ATTACK_TACTICS.has(t.tactic) && !known.tactics.includes(t.tactic)) {
+          err(where, `MITRE technique ${t.id} (${known.name}) is not under tactic "${t.tactic}"; it belongs to ${known.tactics.join(', ')}`);
+        }
       }
     }
   }
@@ -206,6 +226,20 @@ for (const { file, path, data } of providers) {
         }
         if (!check(value)) err(sWhere, `${field}["${threatId}"] has the wrong shape`);
       }
+    }
+
+    for (const [threatId, text] of Object.entries(service.threatContext ?? {})) {
+      if (typeof text === 'string' && text.length >= MAX_THREAT_CONTEXT_LENGTH) {
+        err(sWhere, `threatContext["${threatId}"] is ${text.length} characters; it must be under ${MAX_THREAT_CONTEXT_LENGTH}`);
+      }
+    }
+    for (const [threatId, items] of Object.entries(service.threatMitigations ?? {})) {
+      if (!Array.isArray(items)) continue;
+      items.forEach((text, i) => {
+        if (typeof text === 'string' && text.length >= MAX_THREAT_MITIGATION_LENGTH) {
+          err(sWhere, `threatMitigations["${threatId}"][${i}] is ${text.length} characters; it must be under ${MAX_THREAT_MITIGATION_LENGTH}`);
+        }
+      });
     }
   }
 }

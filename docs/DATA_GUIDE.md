@@ -155,6 +155,7 @@ The `threatContext` field records technology-specific examples of how a threat m
 - The `threatContext` object maps threat IDs to technology-specific example strings
 - Every key must be a threat ID already listed in the technology's `threatIds`
 - Context supplements the threat's own `description`; it never replaces it
+- Each value must be under 500 characters (`npm run validate` fails otherwise)
 - The field is optional and sparse. Most threats on a technology will have no entry
 
 **Best Practices:**
@@ -224,6 +225,7 @@ The `threatMitigations` field defines technology-specific mitigating controls fo
 - A threat with an entry here takes these controls in place of the generic ones
 - A threat with no entry falls back to the threat definition's own `controls`
 - Connection and zone threats never consult this field
+- Each mitigation string must be under 200 characters (`npm run validate` fails otherwise)
 
 **Best Practices:**
 
@@ -350,6 +352,14 @@ Each technique object requires:
 | `tactic` | string | Associated tactic (e.g., `Initial Access`, `Execution`, `Persistence`) |
 
 Mappings follow ATT&CK Enterprise v19. The `tactic` must be one the technique is listed under on its current ATT&CK page.
+
+The validator will check every mapping offline against a pinned copy of ATT&CK
+(`scripts/lib/attack-enterprise.json`, currently v19.2): the technique must exist and not be
+revoked or deprecated, `name` must match ATT&CK's name exactly (for a sub-technique, the
+sub-technique's own name, e.g. `Cloud Accounts` for `T1078.004`), and `tactic` must be one of the
+technique's tactics. To move to a newer ATT&CK release, download its
+`enterprise-attack-X.Y.json` from [attack-stix-data](https://github.com/mitre-attack/attack-stix-data/tree/master/enterprise-attack),
+run `node scripts/update-attack.mjs <file>`, and fix whatever `npm run validate` then reports.
 
 Reference: https://attack.mitre.org/techniques/enterprise/
 
@@ -567,11 +577,13 @@ Before committing changes, verify:
 - [ ] `category` is one of the valid categories
 - [ ] All `threatIds` exist in `common-threats.json`
 - [ ] `description` is concise but informative
-- [ ] `connectionSecurity.enforcesEncryption` is set for TLS-enforcing services (API gateways, CDNs, load balancers, WAFs)
+- [ ] `connectionSecurity.enforcesEncryption` is set only where the service itself terminates or mandates TLS on every connection through it (API gateways, CDNs, load balancers), not for pass-through inspection or private circuits that are unencrypted by default
 - [ ] `threatContext` keys match valid threat IDs in the technology's `threatIds` array
 - [ ] `threatContext` values are specific, actionable examples (not generic descriptions)
+- [ ] `threatContext` values are under 500 characters
 - [ ] `threatMitigations` keys match valid threat IDs in the technology's `threatIds` array
 - [ ] `threatMitigations` values are arrays of specific, actionable mitigation strings
+- [ ] Each `threatMitigations` string is under 200 characters
 - [ ] `threatMitigations` reference technology-specific tools, configurations, or features
 
 #### Threats

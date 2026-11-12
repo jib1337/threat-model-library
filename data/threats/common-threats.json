@@ -398,7 +398,7 @@
     {
       "id": "query-injection",
       "name": "Query and Header Injection",
-      "description": "Attacker manipulates non-SQL query, filter or protocol syntax through unsanitized input, such as LDAP filters, graph queries (Gremlin, Cypher, SPARQL), search queries (Query DSL, Lucene, OData), time-series queries, XPath, or HTTP and email headers, to read or modify data or alter how requests are handled",
+      "description": "Attacker manipulates non-SQL query, filter or protocol syntax via unsanitized input, such as LDAP filters, graph queries (Gremlin, Cypher, SPARQL), search queries (Query DSL, Lucene, OData), time-series queries, XPath, or HTTP and email headers, to read or modify data or alter request handling",
       "severity": "high",
       "stride": [
         "tampering",

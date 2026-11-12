@@ -287,7 +287,7 @@ Threats represent security risks associated with technologies or connections bet
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier (kebab-case, e.g., `sql-injection`) |
 | `name` | string | Yes | Human-readable name for the threat |
-| `description` | string | Yes | Detailed description of the threat |
+| `description` | string | Yes | Detailed description of the threat. Must be under 300 characters (`npm run validate` fails otherwise) |
 | `severity` | string | Yes | Threat severity level: `low`, `medium`, `high`, or `critical` (see Severity Levels) |
 | `stride` | string[] | Yes | STRIDE categories (see below) |
 | `mitreTechniques` | array | Yes | MITRE ATT&CK technique mappings |
@@ -553,7 +553,7 @@ For technology-specific controls, use the `threatMitigations` field on the techn
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier. Convention: `ctrl-{threat-shortname}-{number}` |
-| `description` | string | Yes | Actionable control description (start with verb) |
+| `description` | string | Yes | Actionable control description (start with verb). Must be under 200 characters (`npm run validate` fails otherwise) |
 
 #### Best Practices for Controls
 
@@ -563,6 +563,7 @@ For technology-specific controls, use the `threatMitigations` field on the techn
 4. **Order by Priority**: List most effective controls first
 5. **Include 3-5 Controls**: Provide enough options without overwhelming
 6. **Keep Controls Generic**: For provider-specific mitigations, use `threatMitigations` on the technology instead
+7. **Keep Them Short**: One sentence, under 200 characters — the same limit as a `threatMitigations` string, since those replace these controls on a technology
 
 ---
 
@@ -588,6 +589,7 @@ Before committing changes, verify:
 
 #### Threats
 - [ ] `id` is unique within `common-threats.json`
+- [ ] `description` is under 300 characters
 - [ ] `stride` contains only valid STRIDE values
 - [ ] `mitreTechniques` use valid MITRE technique IDs
 - [ ] All `controls` have unique IDs
@@ -597,6 +599,7 @@ Before committing changes, verify:
 #### Controls
 - [ ] `id` follows convention: `ctrl-{threat-shortname}-{number}`
 - [ ] `description` starts with an actionable verb
+- [ ] `description` is under 200 characters
 - [ ] No duplicate control IDs within the threat
 
 ---

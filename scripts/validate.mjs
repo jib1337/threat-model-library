@@ -16,8 +16,12 @@ const ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MITRE_PATTERN = /^T\d{4}(\.\d{3})?$/;
 const CONTROL_PATTERN = /^ctrl-[a-z0-9-]+-\d+$/;
 
-// Exclusive upper bounds on technology-specific text, so the sidebar and
-// exports stay readable. Each threatMitigations entry is checked on its own.
+// Exclusive upper bounds on catalogue text, so the sidebar and exports stay
+// readable. Each threatMitigations entry and each control is checked on its
+// own. Controls share the threatMitigations bound because a technology's
+// threatMitigations replace a threat's generic controls.
+const MAX_THREAT_DESCRIPTION_LENGTH = 300;
+const MAX_CONTROL_DESCRIPTION_LENGTH = 200;
 const MAX_THREAT_CONTEXT_LENGTH = 500;
 const MAX_THREAT_MITIGATION_LENGTH = 200;
 
@@ -74,7 +78,11 @@ for (const threat of threats.threats ?? []) {
   threatIds.add(threat.id);
 
   if (!isNonEmptyString(threat.name)) err(where, 'name is required');
-  if (!isNonEmptyString(threat.description)) err(where, 'description is required');
+  if (!isNonEmptyString(threat.description)) {
+    err(where, 'description is required');
+  } else if (threat.description.length >= MAX_THREAT_DESCRIPTION_LENGTH) {
+    err(where, `description is ${threat.description.length} characters; it must be under ${MAX_THREAT_DESCRIPTION_LENGTH}`);
+  }
   if (!severityIds.has(threat.severity)) {
     err(where, `severity "${threat.severity}" is not in taxonomy.severities`);
   }
@@ -127,7 +135,11 @@ for (const threat of threats.threats ?? []) {
       }
       if (controlIds.has(c.id)) err(where, `duplicate control id "${c.id}"`);
       controlIds.add(c.id);
-      if (!isNonEmptyString(c.description)) err(where, `control "${c.id}" is missing a description`);
+      if (!isNonEmptyString(c.description)) {
+        err(where, `control "${c.id}" is missing a description`);
+      } else if (c.description.length >= MAX_CONTROL_DESCRIPTION_LENGTH) {
+        err(where, `control "${c.id}" description is ${c.description.length} characters; it must be under ${MAX_CONTROL_DESCRIPTION_LENGTH}`);
+      }
     }
   }
 

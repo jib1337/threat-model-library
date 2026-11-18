@@ -17,7 +17,7 @@
     {
       "id": "compute",
       "label": "Compute",
-      "presetThreatIds": ["unauthorized-access", "misconfiguration", "malware-infection", "data-exfiltration", "privilege-escalation", "credential-theft", "dos-attack"]
+      "presetThreatIds": ["unauthorized-access", "misconfiguration", "malware-infection", "data-exfiltration", "privilege-escalation", "credential-theft", "dos-attack", "lateral-movement", "unpatched-vulnerabilities"]
     },
     {
       "id": "database",
@@ -27,7 +27,7 @@
     {
       "id": "storage",
       "label": "Storage",
-      "presetThreatIds": ["bucket-misconfiguration", "data-exfiltration", "unauthorized-access", "sensitive-data-exposure", "backup-exposure"]
+      "presetThreatIds": ["bucket-misconfiguration", "data-exfiltration", "unauthorized-access", "sensitive-data-exposure", "backup-exposure", "misconfiguration"]
     },
     {
       "id": "serverless",
@@ -37,12 +37,12 @@
     {
       "id": "container",
       "label": "Container",
-      "presetThreatIds": ["container-escape", "misconfiguration", "unauthorized-access", "privilege-escalation", "supply-chain-attack", "credential-theft"]
+      "presetThreatIds": ["container-escape", "misconfiguration", "unauthorized-access", "privilege-escalation", "supply-chain-attack", "credential-theft", "lateral-movement"]
     },
     {
       "id": "cicd",
       "label": "CI/CD",
-      "presetThreatIds": ["supply-chain-attack", "injection-attack", "misconfiguration", "credential-theft", "unauthorized-access", "excessive-permissions"]
+      "presetThreatIds": ["supply-chain-attack", "injection-attack", "misconfiguration", "credential-theft", "unauthorized-access", "excessive-permissions", "privilege-escalation"]
     },
     {
       "id": "networking",
@@ -52,37 +52,37 @@
     {
       "id": "identity",
       "label": "Identity & Access",
-      "presetThreatIds": ["privilege-escalation", "credential-theft", "excessive-permissions", "misconfiguration", "account-takeover"]
+      "presetThreatIds": ["privilege-escalation", "credential-theft", "excessive-permissions", "misconfiguration", "account-takeover", "broken-authentication"]
     },
     {
       "id": "secrets",
       "label": "Secrets Management",
-      "presetThreatIds": ["credential-theft", "misconfiguration", "excessive-permissions", "unauthorized-access", "sensitive-data-exposure"]
+      "presetThreatIds": ["credential-theft", "misconfiguration", "excessive-permissions", "unauthorized-access", "sensitive-data-exposure", "privilege-escalation", "audit-logging-bypass", "data-exfiltration"]
     },
     {
       "id": "messaging",
       "label": "Messaging",
-      "presetThreatIds": ["message-tampering", "unauthorized-access", "dos-attack", "misconfiguration", "excessive-permissions"]
+      "presetThreatIds": ["message-tampering", "unauthorized-access", "dos-attack", "misconfiguration", "data-exfiltration"]
     },
     {
       "id": "monitoring",
       "label": "Monitoring",
-      "presetThreatIds": ["log-tampering", "misconfiguration", "sensitive-data-exposure", "audit-logging-bypass"]
+      "presetThreatIds": ["log-tampering", "misconfiguration", "sensitive-data-exposure", "audit-logging-bypass", "unauthorized-access"]
     },
     {
       "id": "ai-ml",
       "label": "AI & Machine Learning",
-      "presetThreatIds": ["prompt-injection", "ai-training-data-poisoning", "ai-model-extraction", "sensitive-data-exposure", "misconfiguration"]
+      "presetThreatIds": ["prompt-injection", "ai-training-data-poisoning", "ai-model-extraction", "sensitive-data-exposure", "misconfiguration", "unauthorized-access", "excessive-permissions", "insecure-output-handling"]
     },
     {
       "id": "orchestration",
       "label": "Orchestration",
-      "presetThreatIds": ["workflow-manipulation", "misconfiguration", "excessive-permissions", "sensitive-data-exposure"]
+      "presetThreatIds": ["workflow-manipulation", "misconfiguration", "excessive-permissions", "sensitive-data-exposure", "credential-theft"]
     },
     {
       "id": "saas",
       "label": "SaaS",
-      "presetThreatIds": ["account-takeover", "credential-theft", "data-exfiltration", "misconfiguration", "sensitive-data-exposure", "oauth-token-abuse"]
+      "presetThreatIds": ["account-takeover", "credential-theft", "data-exfiltration", "misconfiguration", "sensitive-data-exposure", "oauth-token-abuse", "third-party-integration-risk"]
     }
   ]
 }

@@ -65,7 +65,7 @@ Each provider file follows this structure:
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique identifier. Convention: `{provider}-{service-name}` (e.g., `aws-ec2`, `gcp-gke`) |
 | `name` | string | Yes | Human-readable name for the service |
-| `provider` | string | Yes | Must match parent file: `aws`, `gcp`, `azure`, or `self-hosted` |
+| `provider` | string | Yes | Must match the parent file's `provider` (`aws`, `azure`, `gcp`, `saas`, `self-hosted`) |
 | `category` | string | Yes | Service category (see valid categories below) |
 | `description` | string | Yes | Brief description of the service |
 | `threatIds` | string[] | Yes | Array of threat IDs from `common-threats.json` |
@@ -102,7 +102,7 @@ Each provider file follows this structure:
   "id": "aws-bedrock",
   "name": "Bedrock",
   "provider": "aws",
-  "category": "compute",
+  "category": "ai-ml",
   "description": "Managed generative AI service",
   "threatIds": ["prompt-injection", "sensitive-data-exposure", "misconfiguration", "excessive-permissions"]
 }
@@ -231,10 +231,11 @@ The `threatMitigations` field defines technology-specific mitigating controls fo
 
 1. **Be Technology-Specific**: Reference actual service features (e.g., "Enable S3 Block Public Access", "Enforce IMDSv2")
 2. **Be Actionable**: Start with a verb (Enable, Enforce, Configure, Restrict, Use)
-3. **Reference Provider Tools**: Mention tools like AWS Config, CloudTrail, GuardDuty, GCP Organization Policies
-4. **Include 2-4 Mitigations**: Enough to be comprehensive without overwhelming
-5. **Order by Impact**: List the most effective mitigations first
-6. **Match threatIds**: Only add mitigations for threats in the technology's `threatIds` array
+3. **Be Concise**: State what needs to be done to address an issue, and no more. Don't include product facts, application settings, or default behaviours
+4. **Reference Provider Tools**: Mention tools like AWS Config, CloudTrail, GuardDuty, GCP Organization Policies
+5. **Include 2-4 Mitigations**: Enough to be comprehensive without overwhelming
+6. **Order by Impact**: List the most effective mitigations first
+7. **Match threatIds**: Only add mitigations for threats in the technology's `threatIds` array
 
 **When to Add Mitigations:**
 
@@ -295,6 +296,7 @@ Threats represent security risks associated with technologies or connections bet
 | `isConnectionThreat` | boolean | No | If `true`, threat applies to connections between technologies rather than individual components |
 | `isPathwayThreat` | boolean | No | If `true`, exploiting this threat enables a pivot to downstream systems (see Pathway Threats) |
 | `isZoneThreat` | boolean | No | If `true`, threat applies to private network zone boundaries (see Zone Threats) |
+| `zoneContext` | string | With `isZoneThreat` | How the threat manifests at the zone level. `npm run validate` warns when a zone threat has none |
 
 #### STRIDE Categories
 
@@ -329,15 +331,7 @@ the compromised component to systems connected downstream of it. The flag marks 
 threat as a pivot enabler; a consumer that models blast radius can use it to carry
 downstream exposure back to the component where the pivot starts.
 
-Current pathway threats:
-- `unauthorized-access` - Initial foothold enables access to connected systems
-- `privilege-escalation` - Elevated privileges can bypass downstream controls
-- `credential-theft` - Stolen credentials may work on connected systems
-- `lateral-movement` - Explicitly about moving between systems
-- `container-escape` - Breaks isolation, accesses host and network
-- `ssrf-attack` - Forces server to make requests to internal systems
-- `injection-attack` - Code execution enables pivoting
-- `supply-chain-attack` - Compromised component affects all dependents
+The flag is a judgement that compromising the component hands the attacker a foothold, credentials or execution they can carry downstream, as with `unauthorized-access`, `credential-theft`, `lateral-movement`, `container-escape`, `ssrf-attack` or `supply-chain-attack`. List the threats that currently carry it with `npm run query -- list threats` (the flags column shows `pathway`).
 
 When adding a new threat, set `"isPathwayThreat": true` if the threat could be used to move laterally or access connected systems.
 
@@ -441,7 +435,7 @@ transport-interception threats such as Man-in-the-Middle or Data Exposure in Tra
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `enforcesEncryption` | boolean | Service enforces TLS encryption on all connections (e.g., API Gateway, CloudFront, Load Balancers) |
+| `enforcesEncryption` | boolean | Service accepts only TLS on every connection, with no plaintext listener or route a customer can configure (e.g., Amazon API Gateway, AWS KMS, Azure SQL Database). CDNs and load balancers that allow HTTP listeners or HTTP origins do not qualify |
 | `internalOnly` | boolean | Service only accepts internal/VPC traffic |
 
 #### Pathway Mitigations
@@ -454,9 +448,9 @@ A pathway mitigation records that a protective technology, sitting upstream of a
 
 | Type | Threats Mitigated | Providing Technologies |
 |------|-------------------|------------------------|
-| `ddos-protection` | `dos-attack`, `connection-dos` | `saas-cloudflare`, `gcp-cloud-armor`, `aws-cloudfront`, `gcp-cloud-cdn`, `azure-front-door` |
-| `waf-protection` | `injection-attack`, `sql-injection`, `nosql-injection`, `ssrf-attack`, `connection-injection` | `aws-waf`, `azure-waf`, `gcp-cloud-armor`, `saas-cloudflare`, `azure-application-gateway`, `azure-front-door`, `gcp-apigee` |
-| `rate-limiting` | `dos-attack` | `aws-api-gateway`, `gcp-apigee`, `azure-api-management`, `gcp-cloud-endpoints` |
+| `ddos-protection` | `dos-attack`, `connection-dos` | `saas-cloudflare`, `gcp-cloud-armor`, `aws-cloudfront`, `gcp-cloud-cdn`, `azure-front-door`, `aws-elb`, `gcp-cloud-load-balancing` |
+| `waf-protection` | `injection-attack`, `sql-injection`, `nosql-injection` | `aws-waf`, `azure-waf`, `gcp-cloud-armor`, `saas-cloudflare` |
+| `rate-limiting` | `dos-attack`, `connection-dos`, `broken-authentication` | `aws-api-gateway`, `gcp-apigee`, `azure-api-management`, `gcp-cloud-endpoints`, `self-kong`, `aws-waf`, `azure-waf` |
 | `network-firewall` | `lateral-movement`, `unauthorized-access` | `aws-network-firewall`, `azure-firewall`, `self-pfsense`, `self-opnsense` |
 
 Mitigations live in `data/mitigations/pathway-mitigations.json`.
@@ -468,7 +462,7 @@ Each entry declares the mitigation once including its label, the threats it addr
   "label": "DDoS Protection",
   "description": "Mitigates: Denial of Service, Connection Flooding",
   "mitigatesThreatIds": ["dos-attack", "connection-dos"],
-  "technologyIds": ["saas-cloudflare", "gcp-cloud-armor"]
+  "technologyIds": ["saas-cloudflare", "gcp-cloud-armor", "aws-cloudfront", "gcp-cloud-cdn", "azure-front-door", "aws-elb", "gcp-cloud-load-balancing"]
 }
 ```
 
@@ -510,7 +504,8 @@ A zone threat applies to every private zone in a model. Unlike component threats
     { "id": "ctrl-net-1", "description": "Implement default-deny firewall rules" },
     { "id": "ctrl-net-2", "description": "Regularly audit security group configurations" }
   ],
-  "isZoneThreat": true
+  "isZoneThreat": true,
+  "zoneContext": "Improper network security controls at the zone boundary including overly permissive firewall rules, misconfigured security groups or NSGs, missing network segmentation"
 }
 ```
 
@@ -519,13 +514,16 @@ A zone threat applies to every private zone in a model. Unlike component threats
 | Field | Type | Description |
 |-------|------|-------------|
 | `isZoneThreat` | boolean | Set to `true` to make this threat apply to private zone boundaries |
+| `zoneContext` | string | How the threat manifests for a zone, shown in place of the component-level framing. The validator warns when it is missing |
 
 **Current Zone Threats:**
 
-| Threat ID | Name | Description |
+| Threat ID | Name | Why it applies to a zone |
 |-----------|------|-------------|
-| `unauthorized-access` | Unauthorized Access | Applies to zones because private networks still require access controls |
+| `unauthorized-access` | Unauthorized Access | Private networks still require access controls |
+| `misconfiguration` | Security Misconfiguration | Zone-wide baselines and default settings can be weak or inconsistent |
 | `data-exfiltration` | Data Exfiltration | Private zones need egress controls to prevent data leaving the network |
+| `audit-logging-bypass` | Audit Logging Bypass | Zone-level logging (flow logs, traffic analytics) can be disabled or evaded |
 | `network-misconfiguration` | Network Misconfiguration | Security group and firewall rules can be misconfigured in private zones |
 | `lateral-movement` | Lateral Movement | Once inside a private zone, attackers can move between systems |
 
@@ -578,7 +576,7 @@ Before committing changes, verify:
 - [ ] `category` is one of the valid categories
 - [ ] All `threatIds` exist in `common-threats.json`
 - [ ] `description` is concise but informative
-- [ ] `connectionSecurity.enforcesEncryption` is set only where the service itself terminates or mandates TLS on every connection through it (API gateways, CDNs, load balancers), not for pass-through inspection or private circuits that are unencrypted by default
+- [ ] `connectionSecurity.enforcesEncryption` is set only where the service itself terminates or mandates TLS on every connection through it and a customer cannot configure a plaintext listener, route or origin; CDNs and load balancers that allow HTTP (e.g. CloudFront, ELB, Front Door) do not qualify, nor do pass-through inspection or private circuits that are unencrypted by default
 - [ ] `threatContext` keys match valid threat IDs in the technology's `threatIds` array
 - [ ] `threatContext` values are specific, actionable examples (not generic descriptions)
 - [ ] `threatContext` values are under 500 characters
@@ -594,7 +592,7 @@ Before committing changes, verify:
 - [ ] `mitreTechniques` use valid MITRE technique IDs
 - [ ] All `controls` have unique IDs
 - [ ] `isConnectionThreat` is set correctly (only for network/data flow threats)
-- [ ] `isZoneThreat` is set correctly (only for threats applicable to private network zones)
+- [ ] `isZoneThreat` is set correctly (only for threats applicable to private network zones), with a `zoneContext`
 
 #### Controls
 - [ ] `id` follows convention: `ctrl-{threat-shortname}-{number}`

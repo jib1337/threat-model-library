@@ -18,7 +18,8 @@
         "oauth-token-abuse",
         "third-party-integration-risk",
         "shadow-it",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "token-theft"
       ],
       "threatContext": {
         "account-takeover": "Password spray attacks against Azure AD, legacy authentication bypass (POP/IMAP), MFA fatigue attacks, Adversary-in-the-Middle phishing with Evilginx2 stealing session tokens",
@@ -29,19 +30,21 @@
         "oauth-token-abuse": "Malicious OAuth apps requesting Mail.Read/Files.ReadWrite.All scopes, Azure AD application consent abuse, long-lived refresh tokens enabling persistent access",
         "third-party-integration-risk": "Unvetted Microsoft 365 add-ins, Power Platform connectors with broad permissions, third-party backup solutions with full tenant access",
         "shadow-it": "Unsanctioned Teams apps installed by users, Power Automate flows connecting to external services, third-party Outlook add-ins with mailbox access",
-        "sensitive-data-exposure": "Sensitive documents without classification labels, email containing PII/PHI exposed via mailbox search, SharePoint search indexing confidential content"
+        "sensitive-data-exposure": "Sensitive documents without classification labels, email containing PII/PHI exposed via mailbox search, SharePoint search indexing confidential content",
+        "token-theft": "AiTM phishing kits (Evilginx, Tycoon 2FA) replaying ESTSAUTH session cookies, device code phishing (Storm-2372) yielding refresh tokens, PRT and refresh-token theft from compromised Windows endpoints (ROADtools, AADInternals), FOCI family refresh tokens redeemed across Microsoft first-party apps"
       },
       "threatMitigations": {
         "account-takeover": [
           "Enforce Conditional Access policies requiring MFA, compliant devices, and trusted locations for all users",
           "Disable legacy authentication protocols (POP, IMAP, SMTP AUTH) via Authentication Policies to block password spray attacks",
           "Enable Azure AD Identity Protection with risk-based sign-in policies to automatically block or challenge suspicious logins",
-          "Configure session lifetime policies to limit persistent sessions and require periodic re-authentication"
+          "Configure session lifetime policies to limit persistent sessions and require periodic re-authentication",
+          "Require phishing-resistant authentication strength (FIDO2, passkeys, Windows Hello) for admins and high-risk users via Conditional Access"
         ],
         "credential-theft": [
           "Deploy Microsoft Defender for Office 365 Safe Links and Safe Attachments to block phishing lures via SharePoint and OneDrive",
           "Configure Azure AD admin consent workflow to prevent users from granting OAuth permissions to unvetted applications",
-          "Use Conditional Access app-enforced session controls to prevent token theft on unmanaged endpoints"
+          "Require phishing-resistant authentication strength in Conditional Access"
         ],
         "data-exfiltration": [
           "Configure Exchange Online transport rules to block auto-forwarding to external domains",
@@ -77,13 +80,20 @@
           "Deploy Microsoft Defender for Cloud Apps to discover and control unsanctioned app usage",
           "Block sideloading of Teams apps and restrict app installation to admin-approved apps only",
           "Use Power Platform environment data loss prevention (DLP) policies to control connector usage",
-          "Monitor Outlook add-in installations via centralized deployment and restrict user-installed add-ins"
+          "Monitor Outlook add-in installations via centralized deployment and restrict user-installed add-ins",
+          "Set Entra user consent to 'Do not allow user consent' or verified publishers with low-risk permissions and route the rest to admin consent"
         ],
         "sensitive-data-exposure": [
           "Deploy Microsoft Purview sensitivity labels with auto-labeling to classify documents containing PII or PHI",
           "Use Microsoft Purview Content Explorer to discover and audit sensitive data across Exchange, SharePoint, and OneDrive",
           "Configure SharePoint search to respect sensitivity labels and exclude restricted content from broad search results",
           "Enable Microsoft Purview Insider Risk Management to detect anomalous access to sensitive content"
+        ],
+        "token-theft": [
+          "Enforce Conditional Access token protection for Exchange, SharePoint and Teams native apps on supported Windows devices",
+          "Block device code flow with a Conditional Access authentication flows policy, excluding only documented device scenarios",
+          "Require compliant or hybrid-joined devices in Conditional Access",
+          "Enable Continuous Access Evaluation strict location enforcement and revoke all user sessions when token theft is suspected"
         ]
       }
     },
@@ -102,7 +112,8 @@
         "oauth-token-abuse",
         "third-party-integration-risk",
         "shadow-it",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "token-theft"
       ],
       "threatContext": {
         "account-takeover": "Google account phishing, session hijacking via stolen cookies, 2SV bypass through SIM swapping, compromised recovery phone/email",
@@ -113,7 +124,8 @@
         "oauth-token-abuse": "Malicious apps requesting gmail.readonly or drive.file scopes, OAuth token theft via Chrome extensions, refresh token abuse for persistent access",
         "third-party-integration-risk": "Untrusted Google Workspace Marketplace apps, third-party Chrome extensions with broad permissions, SMTP relay abuse",
         "shadow-it": "Unapproved Chrome extensions accessing Google Drive data, unauthorized Marketplace apps installed via user consent, personal Google accounts accessing corporate data",
-        "sensitive-data-exposure": "Sensitive data in Google Docs without access restrictions, Gmail containing PII accessible via search, shared drives with mixed sensitivity content"
+        "sensitive-data-exposure": "Sensitive data in Google Docs without access restrictions, Gmail containing PII accessible via search, shared drives with mixed sensitivity content",
+        "token-theft": "Infostealer theft of Google session cookies, AiTM phishing proxies replaying session cookies, abuse of the OAuth MultiLogin endpoint to regenerate expired cookies (2023), OAuth refresh tokens stolen from compromised clients or local credential files"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -124,7 +136,7 @@
         ],
         "credential-theft": [
           "Enable Advanced Protection Program for high-risk users to enforce security key authentication and restrict third-party app access",
-          "Configure Google Workspace DLP rules to scan Gmail for credential harvesting lures and phishing URLs",
+          "Enable Gmail advanced phishing and malware protection and enhanced pre-delivery scanning in Admin console Safety settings",
           "Use Google Workspace Security Investigation Tool to identify and revoke compromised OAuth tokens"
         ],
         "data-exfiltration": [
@@ -160,14 +172,20 @@
         "shadow-it": [
           "Block unapproved Chrome extensions via Chrome Browser Cloud Management policies",
           "Restrict Google Workspace Marketplace app installation to admin-approved apps only",
-          "Enable BeyondCorp Enterprise or Context-Aware Access to detect personal Google account usage on corporate devices",
-          "Use Google Cloud CASB capabilities to discover unsanctioned SaaS usage across the organization"
+          "Allow only managed Google accounts on corporate devices via the X-GoogApps-Allowed-Domains header or Chrome RestrictSigninToPattern",
+          "Block unconfigured third-party apps in API controls, or limit them to apps that request only basic Sign in with Google information"
         ],
         "sensitive-data-exposure": [
           "Deploy Google Workspace DLP rules to scan Google Drive, Gmail, and Chat for sensitive content (PII, PHI, PCI)",
           "Use Google Drive labels and classification to identify and restrict access to sensitive documents",
           "Configure Information Rights Management (IRM) to prevent downloading, printing, or copying of sensitive files",
           "Enable Google Vault for eDiscovery and audit trails on sensitive content access"
+        ],
+        "token-theft": [
+          "Require DBSC-bound sessions for Workspace web apps via a Context-Aware Access level",
+          "Set web session duration in Admin console Google session control",
+          "Enforce Context-Aware Access requiring managed, verified devices",
+          "On compromise, sign the user out of all sessions in the Admin console and revoke their OAuth tokens"
         ]
       }
     },
@@ -185,17 +203,19 @@
         "oauth-token-abuse",
         "third-party-integration-risk",
         "credential-theft",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "saas-data-leakage"
       ],
       "threatContext": {
         "account-takeover": "Credential stuffing against Salesforce login, SSO misconfiguration bypass, session hijacking via stolen session IDs, MFA bypass through social engineering",
         "data-exfiltration": "Mass data export via Data Loader, SOQL query abuse for bulk record extraction, report export containing PII/financial data, connected app data sync",
         "misconfiguration": "Public communities exposing internal data, Aura API exposing records without FLS, sharing rules allowing cross-account access, guest user profile misconfiguration",
         "excessive-permissions": "Modify All Data permission abuse, View All Users exposing org structure, overly permissive permission sets, System Administrator profile overuse",
-        "oauth-token-abuse": "Connected app token theft, refresh token persistence for long-term access, API-only user abuse, OAuth scope escalation",
+        "oauth-token-abuse": "Vishing users into authorizing a modified Data Loader connected app, then bulk-exporting via the API (UNC6040, 2025), stolen Salesloft Drift OAuth tokens used for SOQL exfiltration across hundreds of orgs (UNC6395, 2025), refresh token persistence, API-only user abuse",
         "third-party-integration-risk": "AppExchange packages with excessive permissions, Salesforce-to-Salesforce connection abuse, third-party ETL tools with full org access",
         "credential-theft": "API security tokens extracted from developer consoles, Connected App client secrets exposed in source code, SSO SAML assertion theft for replay attacks",
-        "sensitive-data-exposure": "Customer PII in Account/Contact records, financial data in Opportunity objects, sensitive notes in Activity history, API query results exposing restricted fields"
+        "sensitive-data-exposure": "Customer PII in Account/Contact records, financial data in Opportunity objects, sensitive notes in Activity history, API query results exposing restricted fields",
+        "saas-data-leakage": "Experience Cloud guest user profiles with object or Apex access exposing records via the Aura endpoint without login, public links to Salesforce Files containing sensitive documents, records shared to external community users through overly broad sharing sets"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -226,13 +246,15 @@
           "Configure Connected App policies to require admin pre-authorization and restrict OAuth scopes to minimum required",
           "Set refresh token expiration policies on Connected Apps to prevent long-lived persistent access",
           "Monitor Connected App usage via Event Monitoring and revoke tokens for unused or suspicious applications",
-          "Restrict API-only user access and enforce IP restrictions on API-enabled profiles"
+          "Restrict API-only user access and enforce IP restrictions on API-enabled profiles",
+          "Block uninstalled connected apps (API Access Control) and grant 'Approve Uninstalled Connected Apps' and 'Use Any API Client' to few admins"
         ],
         "third-party-integration-risk": [
           "Review AppExchange package permissions before installation and restrict packages to least-privilege access",
           "Audit Salesforce-to-Salesforce connections and disable unused data sharing configurations",
           "Restrict third-party ETL tool access by creating dedicated integration users with scoped profiles and permission sets",
-          "Use Named Credentials for outbound integrations instead of storing credentials in custom settings or code"
+          "Use Named Credentials for outbound integrations instead of storing credentials in custom settings or code",
+          "Keep a runbook to revoke a vendor's connected app tokens and rotate its integration user credentials as soon as the vendor discloses a breach"
         ],
         "credential-theft": [
           "Rotate Salesforce API security tokens regularly and avoid storing them in source code or unencrypted configuration",
@@ -245,6 +267,12 @@
           "Configure field-level security to restrict PII and financial data access to authorized profiles only",
           "Use Salesforce Data Mask to anonymize sensitive data in sandboxes and non-production environments",
           "Enable field audit trail for sensitive fields to track access and modifications"
+        ],
+        "saas-data-leakage": [
+          "Keep Secure guest user record access enabled, set external org-wide defaults to Private and grant guests read only via guest sharing rules",
+          "Review the Guest User Sharing Rule Access Report and remove unneeded object, field and Apex class access from guest user profiles",
+          "Turn off public access on Experience Cloud sites that do not need unauthenticated visitors",
+          "Restrict who can create public links to Salesforce Files and set expiry dates and passwords on content deliveries"
         ]
       }
     },
@@ -261,7 +289,8 @@
         "oauth-token-abuse",
         "third-party-integration-risk",
         "sensitive-data-exposure",
-        "misconfiguration"
+        "misconfiguration",
+        "data-exfiltration"
       ],
       "threatContext": {
         "account-takeover": "Credential phishing via fake Slack login pages, session token theft from browser local storage, compromised SSO provider leading to Slack access",
@@ -270,7 +299,8 @@
         "oauth-token-abuse": "Malicious Slack apps requesting channels:history or users:read.email scopes, bot token abuse for channel enumeration, OAuth token theft via phishing",
         "third-party-integration-risk": "Unvetted Slack App Directory apps, workflow automations with broad channel access, incoming webhooks from untrusted sources",
         "sensitive-data-exposure": "API keys/passwords shared in channels, credentials in file uploads, PII in direct messages, sensitive data in canvas documents",
-        "misconfiguration": "Message retention disabled allowing permanent data storage, external channel sharing enabled organization-wide, file download permissions not restricted, audit logging not configured"
+        "misconfiguration": "Message retention disabled allowing permanent data storage, external channel sharing enabled organization-wide, file download permissions not restricted, audit logging not configured",
+        "data-exfiltration": "Stolen session cookies or user tokens used to scrape channel history and files via the Web API (EA 2021, Disney 2024), workspace and organization exports by compromised owners, Discovery API access by over-permitted eDiscovery or DLP apps"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -280,7 +310,7 @@
           "Enable Slack audit logs and monitor for suspicious login activity including unusual IP addresses and user agents"
         ],
         "credential-theft": [
-          "Use Slack Enterprise Key Management (EKM) to control encryption keys and revoke access to compromised data",
+          "Enable token rotation for custom Slack apps",
           "Regularly rotate bot tokens and webhook URLs, and audit them via the Slack app management dashboard",
           "Restrict Slack API token scopes to minimum required permissions when creating custom apps and bots",
           "Scan repositories and CI/CD pipelines for exposed Slack tokens using automated secret detection tools"
@@ -314,6 +344,12 @@
           "Restrict external sharing and Slack Connect at the organization level in Enterprise Grid admin settings",
           "Enable Slack audit log API and forward events to your SIEM for monitoring and alerting",
           "Restrict file download and copy/paste permissions to managed devices via session management controls"
+        ],
+        "data-exfiltration": [
+          "Restrict workspace and organization data exports to Org Owners and review export events in Slack audit logs",
+          "Monitor Slack Audit Logs API anomaly events for unexpected scraping, excessive downloads and unfamiliar clients",
+          "Restrict Discovery API access to approved eDiscovery and DLP apps and review their grants",
+          "Require approved devices and short session durations"
         ]
       }
     },
@@ -331,17 +367,19 @@
         "excessive-permissions",
         "broken-authentication",
         "lateral-movement",
-        "supply-chain-attack"
+        "supply-chain-attack",
+        "privilege-escalation"
       ],
       "threatContext": {
         "account-takeover": "Admin console compromise via phishing, MFA bypass through push notification fatigue, session hijacking using stolen Okta cookies, help desk social engineering for MFA reset",
         "credential-theft": "Universal Directory credential extraction, LDAP agent credential compromise, phishing via fake Okta sign-in pages, credential dumping from Okta agents",
-        "token-theft": "SAML assertion theft for session replay, OAuth token interception, API token compromise from exposed configurations, session token extraction from browser",
+        "token-theft": "Session cookies stolen by infostealers or AiTM proxies and replayed, HAR files containing session tokens uploaded to support cases (Okta support system breach, 2023), SAML assertion replay, Okta API (SSWS) tokens leaked from scripts and configuration",
         "misconfiguration": "Weak authentication policies, disabled session timeout, SSO integration misconfigurations, permissive network zones, inactive MFA enforcement",
-        "excessive-permissions": "Super Admin overuse, overly broad API token scopes, application-level admin assignments, group-based access explosion",
+        "excessive-permissions": "Super Admin overuse, API tokens carrying their creator's full admin rights, application-level admin assignments, group-based access explosion",
         "broken-authentication": "Password policy bypass, self-service unlock abuse, recovery question weakness, delegated authentication vulnerabilities",
         "lateral-movement": "Okta compromise enabling access to all federated applications, cross-application session hijacking via shared SSO, lateral movement from low-privilege to high-privilege apps",
-        "supply-chain-attack": "Compromised Okta agents on servers, malicious code injection via third-party integrations, compromised authentication flows affecting downstream applications"
+        "supply-chain-attack": "Compromise of Okta support access (Lapsus$ via a Sitel support engineer, 2022) and of the support case system (HAR files with customer session tokens stolen, 2023), tampered or vulnerable AD/LDAP agents on customer servers, OIN and Okta Workflows connectors with broad tenant scopes",
+        "privilege-escalation": "Super Admin used to add a malicious inbound identity provider and routing rule for cross-tenant impersonation (2023 social-engineering campaigns), group admins adding accounts to groups that grant admin roles in downstream apps (AWS, GitHub) via SAML attributes or group push, API tokens inheriting the full privileges of the admin who created them"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -360,7 +398,8 @@
           "Configure short session lifetimes and idle timeouts in Okta authentication policies",
           "Enable Okta device trust to bind sessions to managed devices and prevent token replay from unmanaged endpoints",
           "Implement continuous access evaluation by configuring Okta to re-evaluate policies on session refresh",
-          "Monitor Okta system log for anomalous token usage patterns, including sessions from multiple geographic locations"
+          "Monitor Okta system log for anomalous token usage patterns, including sessions from multiple geographic locations",
+          "Keep admin session ASN binding on and enable IP binding for admin sessions"
         ],
         "misconfiguration": [
           "Use Okta HealthInsight recommendations to identify and remediate security configuration gaps across the tenant",
@@ -370,7 +409,7 @@
         ],
         "excessive-permissions": [
           "Limit Super Admin role assignments and use custom admin roles with scoped permissions for delegated administration",
-          "Audit API token scopes and restrict tokens to minimum required permissions using Okta API scoping",
+          "Replace SSWS API tokens with OAuth 2.0 service apps granted only the okta.* scopes they need",
           "Review group-based application assignments regularly to prevent access creep from nested or overly broad groups",
           "Implement Okta Governance for access request workflows and periodic access certification campaigns"
         ],
@@ -391,6 +430,12 @@
           "Audit and restrict third-party Okta Integration Network (OIN) apps, reviewing requested scopes before approval",
           "Isolate Okta agent servers on dedicated hosts with restricted network access and endpoint protection",
           "Monitor Okta system log for unauthorized changes to authentication policies, app integrations, and agent configurations"
+        ],
+        "privilege-escalation": [
+          "Require Protected Actions step-up authentication for identity provider, authentication policy and admin role changes",
+          "Alert on system.idp.lifecycle.create, routing and authentication policy changes, and admin role grants in the Okta System Log",
+          "Use custom admin roles with resource sets that exclude groups granting privileged access in downstream apps",
+          "Create Okta API tokens from dedicated least-privilege service admins"
         ]
       }
     },
@@ -407,23 +452,27 @@
         "data-exfiltration",
         "third-party-integration-risk",
         "sensitive-data-exposure",
-        "workflow-manipulation"
+        "workflow-manipulation",
+        "saas-data-leakage",
+        "credential-theft"
       ],
       "threatContext": {
         "account-takeover": "Impersonation via compromised admin accounts, SSO integration bypass, credential stuffing against local accounts, session fixation attacks",
         "misconfiguration": "Public-facing service catalog items, ACL misconfigurations exposing records, elevated public role permissions, debugging enabled in production",
         "excessive-permissions": "Admin role sprawl, overly permissive custom roles, ITIL users with developer access, integration user over-privileges",
-        "data-exfiltration": "Export functionality abuse, GlideRecord queries for bulk data extraction, attachment download automation, report scheduling to external emails",
+        "data-exfiltration": "Export functionality abuse, Table API and list-view queries for bulk record extraction, attachment download automation, report scheduling to external emails",
         "third-party-integration-risk": "Unvetted ServiceNow Store apps, MID Server compromise for on-premise access, third-party integrations with elevated credentials",
         "sensitive-data-exposure": "Security incident details visible to unauthorized users, CMDB containing infrastructure details, password resets visible in incident history, PII in HR service records",
-        "workflow-manipulation": "Approval workflow bypass via direct record manipulation, business rule exploitation for privilege escalation, flow designer automation abuse"
+        "workflow-manipulation": "Approval workflow bypass via direct record manipulation, business rule exploitation for privilege escalation, flow designer automation abuse",
+        "saas-data-leakage": "Knowledge bases left open to public or guest users and harvested by incrementing KB numbers through public Service Portal widgets (AppOmni, 2024), public widgets and list endpoints returning records where ACLs lack the UserIsAuthenticated security attribute, attachments readable by guests",
+        "credential-theft": "Discovery and orchestration credentials (domain, SSH, cloud keys) in the credential store used by MID Servers, OAuth and basic-auth secrets in Connection and Credential records, integration user passwords, pre-auth Jelly template injection (CVE-2024-4879) chained to read stored credentials"
       },
       "threatMitigations": {
         "account-takeover": [
           "Enforce SSO via SAML 2.0 and disable local account authentication for non-emergency users",
           "Configure IP address access control lists (ACLs) in ServiceNow to restrict login to corporate networks and VPN",
           "Enable ServiceNow high-security plugin settings including session timeout and concurrent session limits",
-          "Monitor login events via ServiceNow Security Incident Response (SIR) for anomalous access patterns"
+          "Forward ServiceNow login and transaction logs to a SIEM and alert on anomalous logins, failed SSO assertions and new sessions from unusual IPs"
         ],
         "misconfiguration": [
           "Run the ServiceNow Instance Security Center to identify and remediate security hardening recommendations",
@@ -439,7 +488,7 @@
         ],
         "data-exfiltration": [
           "Restrict export functionality (Excel, CSV, PDF) by role using the ServiceNow security property glide.security.export_roles",
-          "Monitor GlideRecord API usage via ServiceNow Platform Analytics for bulk data access patterns",
+          "Alert on high-volume Table API, export and list-view transactions in the ServiceNow transaction logs (syslog_transaction)",
           "Disable attachment download for external-facing portals and restrict file access by role",
           "Configure report scheduling restrictions to prevent automated report delivery to external email addresses"
         ],
@@ -450,16 +499,27 @@
           "Restrict REST API and SOAP API access using ServiceNow API rate limiting and IP-based ACLs"
         ],
         "sensitive-data-exposure": [
-          "Implement field-level encryption for sensitive fields in CMDB, HR, and Security Incident tables",
           "Configure ServiceNow data policies to restrict visibility of sensitive records based on role and group membership",
           "Mask sensitive data in incident history and audit trails using ServiceNow field-level access controls",
-          "Use ServiceNow Edge Encryption to encrypt sensitive data at rest while maintaining search and sort capabilities"
+          "Use ServiceNow Platform Encryption (Cloud and Field Encryption) with customer-controlled keys for sensitive fields in HR, CMDB and security tables"
         ],
         "workflow-manipulation": [
           "Implement approval record ACLs to prevent direct manipulation of approval states via the API or list view",
           "Enable workflow activity logging and monitor for unauthorized modifications to business rules and flow designer workflows",
           "Restrict flow designer and business rule editing permissions to a dedicated developer group with change management oversight",
-          "Use ServiceNow Update Sets and code review processes to audit workflow changes before promotion to production"
+          "Use ServiceNow Update Sets and code review processes to audit workflow changes before promotion to production",
+          "Require authentication and ACLs on Scripted REST APIs, inbound email actions and inbound webhook triggers that start flows"
+        ],
+        "saas-data-leakage": [
+          "Remove public access from knowledge bases that do not need it and audit exposure with /get_public_knowledge_bases.do and /km_diagnostics.do",
+          "Grant knowledge base read access with Can Read user criteria for authenticated groups rather than relying on Cannot Read denylists",
+          "Apply the UserIsAuthenticated security attribute to ACLs on tables and widgets that must never return data to guest users",
+          "Review Service Portal widgets and portals marked public and disable public access where anonymous users are not served"
+        ],
+        "credential-theft": [
+          "Keep discovery and integration credentials in an external vault using ServiceNow External Credential Storage instead of the instance credential table",
+          "Restrict read and write access to credential and connection alias records to a small credential administrator group",
+          "Run MID Servers under least-privilege service accounts with per-target credentials rather than domain administrator accounts"
         ]
       }
     },
@@ -478,7 +538,7 @@
         "third-party-integration-risk"
       ],
       "threatContext": {
-        "account-takeover": "HR admin impersonation, payroll administrator credential theft, SSO bypass via direct authentication, session hijacking targeting high-privilege users",
+        "account-takeover": "AiTM phishing of SSO and MFA followed by Workday sign-in to redirect salary payments (Storm-2657 'payroll pirate', 2025) with mailbox rules deleting Workday notifications, HR and payroll admin impersonation, SSO bypass via native Workday login",
         "data-exfiltration": "Bulk employee data export, payroll report extraction containing SSN/bank details, benefits enrollment data theft, compensation data reports",
         "sensitive-data-exposure": "PII visible in worker profiles, salary data in report outputs, performance review data exposure, I-9 and tax document access",
         "misconfiguration": "Overly permissive report sharing, external integration configuration exposure, public API endpoints, weak data access policies",
@@ -490,7 +550,8 @@
           "Enforce SSO integration with your identity provider and disable native Workday authentication for end users",
           "Configure Workday authentication policies to require MFA, restrict login to corporate networks, and set session timeouts",
           "Enable Workday audit logging for all admin and security administrator actions and forward logs to SIEM",
-          "Restrict payroll and HR administrator access to named individuals with step-up authentication requirements"
+          "Restrict payroll and HR administrator access to named individuals with step-up authentication requirements",
+          "Require step-up MFA and an approval step on payment election (direct deposit) changes and notify the worker of every bank account change"
         ],
         "data-exfiltration": [
           "Restrict report and data export permissions using Workday domain security policies to limit who can export worker and payroll data",
@@ -536,7 +597,8 @@
         "saas-data-leakage",
         "unauthorized-access",
         "sensitive-data-exposure",
-        "credential-theft"
+        "credential-theft",
+        "third-party-integration-risk"
       ],
       "threatContext": {
         "account-takeover": "Credential stuffing against Zoom accounts, SSO provider compromise, phishing via fake Zoom meeting invites, session hijacking",
@@ -544,7 +606,8 @@
         "saas-data-leakage": "Cloud recordings accessible via public links, meeting transcripts containing sensitive discussions, chat logs exported without consent, shared screen captures",
         "unauthorized-access": "Zoom-bombing via leaked meeting IDs, unauthorized meeting join attempts, PMI reuse enabling predictable access, guest access to Team Chat channels",
         "sensitive-data-exposure": "Confidential meeting content in cloud recordings, AI-generated summaries containing sensitive information, meeting transcripts with PII, shared whiteboard content",
-        "credential-theft": "Meeting passwords embedded in calendar invites, Zoom API credentials exposed, host keys enabling meeting takeover, JWT tokens from developer apps"
+        "credential-theft": "Meeting passcodes embedded in calendar invite links, Server-to-Server OAuth client secrets with admin scopes exposed in code (JWT apps retired 2023), host keys enabling meeting takeover, OAuth tokens held by Marketplace apps",
+        "third-party-integration-risk": "Zoom App Marketplace apps granted account-level scopes to recordings, chat and user data, Server-to-Server OAuth apps with admin scopes, Zoom Apps running inside meetings, recording integrations copying data to third-party storage"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -582,6 +645,11 @@
           "Restrict Zoom developer app creation to admin-approved users and audit active API credentials quarterly",
           "Avoid embedding meeting passwords in calendar invite URLs by using Zoom waiting rooms as the primary access control",
           "Rotate host keys periodically and restrict phone dial-in host key usage to authorized accounts"
+        ],
+        "third-party-integration-risk": [
+          "Require admin pre-approval for Zoom App Marketplace apps and block users from installing unapproved apps",
+          "Review Server-to-Server OAuth and account-level app scopes regularly and remove unused or over-scoped apps",
+          "Revoke a Marketplace app's authorization and rotate Server-to-Server OAuth secrets when the vendor discloses a breach"
         ]
       }
     },
@@ -649,7 +717,7 @@
         ],
         "supply-chain-attack": [
           "Monitor cloud provider audit logs (CloudTrail, Azure Activity Log, GCP Audit Log) for Wiz connector role usage outside of expected scanning patterns",
-          "Scope Wiz cloud connector IAM roles to read-only permissions using the vendor-provided minimum-privilege templates and deny any write actions",
+          "Grant the Wiz connector read-only access plus only the snapshot actions disk scanning needs (or use an in-account scanner), and deny all other write actions",
           "Implement break-glass procedures to rapidly revoke all Wiz connector roles across cloud accounts in the event of a vendor compromise advisory",
           "Maintain an independent cloud security monitoring capability that does not depend solely on Wiz for threat detection"
         ]
@@ -696,7 +764,8 @@
           "Pin GitHub Actions to specific commit SHAs instead of mutable tags to prevent action supply chain attacks",
           "Enable Dependabot alerts and security updates to automatically detect and patch vulnerable dependencies",
           "Restrict Actions to approved actions only using the organization-level Actions permissions policy",
-          "Use GitHub Actions artifact attestations (Sigstore) to verify build provenance in deployment pipelines"
+          "Use GitHub Actions artifact attestations (Sigstore) to verify build provenance in deployment pipelines",
+          "Rotate all repository and organisation secrets exposed to workflows that ran a compromised action, and review workflow logs for leaked values"
         ],
         "sensitive-data-exposure": [
           "Enable GitHub Advanced Security secret scanning to detect and alert on exposed credentials in repositories",
@@ -753,7 +822,8 @@
           "Pin all third-party Actions to full commit SHAs instead of mutable tags (e.g., uses: actions/checkout@a81bbbf)",
           "Restrict allowed Actions at the organization level to GitHub-authored actions and a curated allowlist",
           "Use Dependabot version updates for Actions dependencies to stay current with security patches",
-          "Enable GitHub Actions artifact attestations to verify provenance of build outputs using Sigstore"
+          "Enable GitHub Actions artifact attestations to verify provenance of build outputs using Sigstore",
+          "Rotate all repository and organisation secrets exposed to workflows that ran a compromised action, and review workflow logs for leaked values"
         ],
         "injection-attack": [
           "Never use ${{ github.event.* }} expressions directly in run: steps; pass untrusted input via environment variables instead",
@@ -807,17 +877,17 @@
         "third-party-integration-risk",
         "oauth-token-abuse",
         "data-exfiltration",
-        "unpatched-vulnerabilities"
+        "saas-data-leakage"
       ],
       "threatContext": {
         "account-takeover": "Atlassian account phishing, API token theft enabling persistent access, compromised SSO identity provider, session hijacking via stolen browser cookies targeting wiki admins",
         "sensitive-data-exposure": "Architecture diagrams and network topology in space pages, runbooks containing credentials and access procedures, security documentation exposing controls and gaps, incident post-mortems revealing vulnerabilities, API keys and passwords pasted into pages",
-        "misconfiguration": "Spaces with public/anonymous access enabled, overly permissive space defaults allowing all authenticated users to view, page restrictions not applied to child pages, global permissions allowing any user to create spaces",
-        "credential-theft": "API tokens persisted in browser storage, Atlassian account credentials via phishing, personal access tokens exposed in automation configs, app passwords for SMTP/API integrations",
+        "misconfiguration": "Spaces with public/anonymous access enabled, overly permissive space defaults allowing all authenticated users to view, edit restrictions missing on sensitive child pages (only view restrictions are inherited), global permissions allowing any user to create spaces",
+        "credential-theft": "Atlassian API tokens in automation scripts and CI configs, Atlassian account credentials phished via fake sign-in pages, OAuth 2.0 (3LO) app client secrets exposed in automation configs",
         "third-party-integration-risk": "Unvetted Atlassian Marketplace apps with page read access, Confluence macros from third-party vendors, automation rules with broad space permissions, external integrations via Connect and Forge frameworks",
         "oauth-token-abuse": "Malicious Forge apps requesting read:confluence-content.all scopes, Connect app JWT tokens enabling data access, API token persistence for long-term content scraping",
         "data-exfiltration": "Space export containing all pages and attachments, PDF export of sensitive documentation, REST API-based bulk page extraction, search API used to discover and harvest sensitive content",
-        "unpatched-vulnerabilities": "Critical RCE vulnerabilities (CVE-2023-22515 privilege escalation, CVE-2023-22518 improper authorization, CVE-2022-26134 OGNL injection), actively exploited zero-days targeting on-premise and Data Center instances"
+        "saas-data-leakage": "Pages shared via public links, spaces or the whole site opened to anonymous access, guests and external users invited into spaces, attachments and embedded files on public-link pages"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -835,14 +905,13 @@
         "misconfiguration": [
           "Disable anonymous access at the site level and restrict space creation to authorized administrators",
           "Review default space permissions to ensure new spaces do not inherit overly permissive access for all authenticated users",
-          "Apply page restriction inheritance so child pages automatically inherit parent page restrictions",
+          "Set view restrictions on parent pages and edit restrictions on each sensitive child page",
           "Use Atlassian Guard data security policies to detect spaces with public or anonymous access enabled"
         ],
         "credential-theft": [
           "Enforce API token policies via Atlassian Access to set token expiration and restrict token creation to managed accounts",
           "Monitor Atlassian audit log for API token creation and revoke tokens for offboarded or compromised accounts",
-          "Restrict personal access token permissions and encourage use of OAuth 2.0 for automation integrations",
-          "Disable app password creation for managed accounts and enforce SSO-based authentication for all access methods"
+          "Use OAuth 2.0 (3LO) apps or service accounts with scoped API tokens for automation instead of personal API tokens of named users"
         ],
         "third-party-integration-risk": [
           "Review and restrict Atlassian Marketplace app installations to admin-approved apps via Atlassian Access policies",
@@ -858,15 +927,15 @@
         ],
         "data-exfiltration": [
           "Restrict space export permissions to space administrators only and audit export activity in Confluence audit logs",
-          "Disable PDF and Word export for sensitive spaces using space-level permission configurations",
+          "Use an Atlassian Guard data security policy to block page and space export on spaces that hold sensitive content",
           "Monitor Confluence REST API usage for bulk page retrieval patterns using Atlassian Guard or CASB integration",
-          "Restrict search API access and configure Confluence data residency settings to control where data is stored and processed"
+          "Alert on space and page exports by single accounts or API tokens, and on bulk REST API page reads, with Atlassian Guard Detect or a CASB"
         ],
-        "unpatched-vulnerabilities": [
-          "Keep Confluence Data Center and Server instances updated to the latest LTS release with all security patches applied",
-          "Subscribe to Atlassian Security Advisories and apply critical patches within SLA based on CVSS severity",
-          "Use Atlassian Cloud where possible to receive automatic security updates and eliminate self-managed patching burden",
-          "Implement WAF rules to block known exploitation patterns for Confluence CVEs while patches are being applied"
+        "saas-data-leakage": [
+          "Use an Atlassian Guard data security policy to block public links and anonymous access on spaces that hold internal content",
+          "Disable public links at the site level and enable them only on spaces that are meant to be published",
+          "Restrict guest and external user invitations to admins and review external users regularly in Atlassian Administration",
+          "Audit spaces with anonymous access and remove the anonymous View permission where it is not required"
         ]
       }
     },
@@ -882,7 +951,9 @@
         "misconfiguration",
         "third-party-integration-risk",
         "oauth-token-abuse",
-        "data-exfiltration"
+        "data-exfiltration",
+        "saas-data-leakage",
+        "credential-theft"
       ],
       "threatContext": {
         "account-takeover": "Atlassian account phishing, API token theft, compromised SSO identity provider, session hijacking via stolen browser cookies",
@@ -890,7 +961,9 @@
         "misconfiguration": "Public project visibility, anonymous access enabled, overly permissive project roles, global permissions allowing issue export",
         "third-party-integration-risk": "Unvetted Atlassian Marketplace apps, Jira Service Management customer portal exposure, automation rules with elevated permissions",
         "oauth-token-abuse": "Malicious Forge apps requesting read:jira-work scope, Connect app token abuse, API token persistence for data collection",
-        "data-exfiltration": "Bulk issue export via JQL queries, project backup containing all data, automation rules forwarding data externally, API-based data harvesting"
+        "data-exfiltration": "Bulk issue export via JQL queries, project backup containing all data, automation rules forwarding data externally, API-based data harvesting",
+        "saas-data-leakage": "Filters and dashboards shared with Public or any logged-in user exposing issue data and user lists, Jira Service Management help centers open to self-signup or anyone, projects granting Browse Projects to anonymous users",
+        "credential-theft": "Atlassian API tokens in automation and CI scripts, credentials and secrets pasted into issues, comments and attachments, outgoing webhook secrets in Jira automation rules, OAuth client secrets of integrations"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -901,7 +974,7 @@
         ],
         "sensitive-data-exposure": [
           "Use Jira project permission schemes to restrict access to security-sensitive projects to authorized team members only",
-          "Configure field-level security to hide sensitive custom fields (e.g., customer PII, credentials) from unauthorized roles",
+          "Store sensitive data outside issue fields or use a field-security Marketplace app",
           "Restrict attachment permissions on projects that handle sensitive data and audit attachment access in Jira audit logs",
           "Review issue security levels and ensure confidential issues are protected with appropriate security schemes"
         ],
@@ -928,6 +1001,17 @@
           "Monitor Jira audit logs for bulk JQL queries, large CSV exports, and project backup operations",
           "Review automation rules for external webhook actions and restrict rule execution to admin-approved workflows",
           "Limit Jira REST API access using Atlassian Access IP allowlists and API token expiration policies"
+        ],
+        "saas-data-leakage": [
+          "Disable public sharing of filters and dashboards and audit existing filters and dashboards shared with Public",
+          "Use an Atlassian Guard data security policy to block anonymous access and export on projects that hold internal data",
+          "Restrict Jira Service Management help center access to invited customers instead of open self-signup where tickets hold sensitive data",
+          "Remove anonymous and any-logged-in-user grants of Browse Projects from permission schemes"
+        ],
+        "credential-theft": [
+          "Set API token expiry and block API token creation for managed accounts that do not need it in Atlassian Administration",
+          "Scan issues and comments for secrets with Atlassian Guard detection or a CASB and rotate any exposed credentials",
+          "Revoke API tokens of offboarded users and monitor API token creation events in the organization audit log"
         ]
       }
     },
@@ -946,14 +1030,11 @@
         "credential-theft",
         "sensitive-data-exposure"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "account-takeover": "Cloudflare dashboard credential theft, API key compromise, compromised email for password reset, MFA bypass via SIM swap",
         "misconfiguration": "SSL mode set to Flexible exposing origin traffic, WAF rules disabled or in log-only mode, DNS records exposing origin IP, overly permissive Access policies",
         "dos-attack": "Layer 7 attacks bypassing WAF, rate limiting misconfiguration, origin IP exposure enabling direct attacks, DNS amplification via misconfigured zones",
-        "cache-poisoning": "Cache key manipulation via header injection, web cache deception attacks, Host header poisoning, unkeyed header exploitation",
+        "cache-poisoning": "Unkeyed headers (X-Forwarded-Host, X-Original-URL) poisoning a cached JS or HTML asset served to every visitor at the edge (mass XSS), web cache deception where /account/profile.css caches another user's authenticated page, cache rules with an Edge TTL override caching personalised HTML (Cloudflare strips Set-Cookie but caches the body), Host header poisoning",
         "third-party-integration-risk": "Workers with excessive permissions, untrusted Workers from marketplace, API tokens with account-wide access, Logpush to insecure destinations",
         "credential-theft": "Global API key theft enabling full account control, scoped API tokens exposed in CI/CD configs, origin certificates enabling impersonation, Workers KV secrets exposure",
         "sensitive-data-exposure": "HTTP request logging exposing sensitive payloads, Workers accessing and logging request bodies, Logpush destinations containing PII, R2 buckets with public access"
@@ -1028,7 +1109,7 @@
         "data-exfiltration": "Network topology and credential harvesting, bulk configuration export, monitored system inventory extraction, log data theft",
         "third-party-integration-risk": "Third-party Orion modules with elevated access, integration scripts with hardcoded credentials, webhook destinations to untrusted endpoints",
         "supply-chain-attack": "SUNBURST-style backdoor injection, compromised update mechanisms, malicious module distribution",
-        "remote-command-execution": "Agent-based command execution abuse, script execution via monitoring tools, PowerShell remoting through monitoring infrastructure",
+        "remote-command-execution": "Abuse of SAM script monitors and agent-run PowerShell/Bash on every monitored node, NCM config-change templates and scripts pushed to all network devices, Orion alert actions executing external programs, stored domain/SNMP credentials reused for WMI or WinRM execution",
         "credential-theft": "SNMP credentials stored in monitoring database, WMI credentials for Windows monitoring, SSH keys for Linux monitoring, database connection strings in configuration"
       },
       "threatMitigations": {
@@ -1072,13 +1153,15 @@
           "Verify digital signatures on all SolarWinds platform updates and agent binaries before deployment",
           "Monitor the SolarWinds Orion server for unauthorized modifications to binaries, DLLs, and configuration files",
           "Restrict SolarWinds update server network access to SolarWinds CDN endpoints only using firewall allowlists",
-          "Implement file integrity monitoring on the SolarWinds Orion installation directory and alert on unexpected changes"
+          "Implement file integrity monitoring on the SolarWinds Orion installation directory and alert on unexpected changes",
+          "Restrict the Orion server's outbound internet access to an allowlist and alert on new destinations"
         ],
         "remote-command-execution": [
           "Restrict SolarWinds agent-based command execution to approved scripts and disable ad-hoc remote execution",
           "Audit PowerShell remoting and WMI execution policies on monitored endpoints to limit monitoring-initiated commands",
           "Configure SolarWinds script execution with dedicated low-privilege service accounts scoped to specific operations",
-          "Enable detailed audit logging for all remote commands executed through SolarWinds monitoring infrastructure"
+          "Enable detailed audit logging for all remote commands executed through SolarWinds monitoring infrastructure",
+          "Use Network Configuration Manager approval workflows for config changes and restrict script and alert-action execution to named administrators"
         ],
         "credential-theft": [
           "Migrate from SNMP v1/v2c to SNMPv3 with authentication (SHA) and encryption (AES) to protect credentials in transit",
@@ -1102,21 +1185,23 @@
         "excessive-permissions",
         "sensitive-data-exposure",
         "third-party-integration-risk",
-        "sql-injection"
+        "sql-injection",
+        "data-lake-governance-bypass"
       ],
       "threatContext": {
-        "account-takeover": "Credential stuffing against Snowflake accounts without MFA (as seen in 2024 Ticketmaster/AT&T breaches), compromised SSO provider, session token theft from SnowSQL CLI or JDBC/ODBC drivers",
+        "account-takeover": "Logins with infostealer-harvested passwords to accounts without MFA (UNC5537 campaign, 2024: Ticketmaster, AT&T), compromised SSO provider, legacy single-factor service users, session token theft from SnowSQL CLI or JDBC/ODBC drivers",
         "credential-theft": "Key pair authentication private keys exposed in source code, service account credentials in ETL tool configs, Snowflake API keys in CI/CD pipelines, SnowSQL connection config files with embedded passwords",
         "data-exfiltration": "COPY INTO command for bulk data export to external stages (S3/Azure/GCS), result set download via SnowSQL, data share abuse for cross-account exfiltration, Snowpipe streaming to attacker-controlled storage",
         "misconfiguration": "Network policies not restricting IP access, overly permissive data shares, public stages with sensitive data, ACCOUNTADMIN role used for routine operations, Tri-Secret Secure not enabled",
         "excessive-permissions": "ACCOUNTADMIN role sprawl, overly broad database grants, IMPORTED PRIVILEGES on shared databases granting full access, future grants creating persistent excessive access",
         "sensitive-data-exposure": "Production data copies containing PII/PHI/PCI, data shares exposing sensitive tables to external accounts, query history containing sensitive WHERE clause values, cloned databases retaining original access policies",
         "third-party-integration-risk": "Third-party ETL tools (Fivetran, dbt Cloud) with SYSADMIN-level access, BI tool connections with broad warehouse permissions, Snowflake Partner Connect granting automated access",
-        "sql-injection": "Dynamic SQL in stored procedures, JavaScript UDFs processing unsanitized input, Snowpark DataFrame operations with user-controlled parameters, SQL injection via external functions"
+        "sql-injection": "Dynamic SQL in stored procedures, JavaScript UDFs processing unsanitized input, Snowpark DataFrame operations with user-controlled parameters, SQL injection via external functions",
+        "data-lake-governance-bypass": "Roles exempted in masking or row access policy bodies (IS_ROLE_IN_SESSION checks) granted too widely, policies missing on cloned or newly created tables, reading the underlying files directly through external stages or external tables, owner's-rights stored procedures, or views whose owner role is exempt in INVOKER_ROLE checks, returning unmasked data"
       },
       "threatMitigations": {
         "account-takeover": [
-          "Enforce MFA for all Snowflake users via ALTER ACCOUNT SET REQUIRE_MFA = TRUE or per-user MFA enrollment policies",
+          "Require MFA through an authentication policy (MFA_ENROLLMENT = 'REQUIRED') applied to the account, and migrate service accounts to TYPE = SERVICE users with key pair or OAuth",
           "Configure SSO with SAML 2.0 integration and disable password-based authentication for human users",
           "Enable Snowflake's built-in network policies to restrict login to corporate IP ranges",
           "Monitor the LOGIN_HISTORY and SESSIONS views for anomalous authentication patterns"
@@ -1125,13 +1210,13 @@
           "Use key pair authentication for service accounts instead of password-based credentials",
           "Rotate service account credentials regularly and store them in a secrets manager rather than ETL tool configs",
           "Restrict API access to known IP ranges using network policies",
-          "Monitor ACCESS_HISTORY for credential usage from unexpected locations"
+          "Monitor LOGIN_HISTORY for client IP, client type and authentication factor anomalies on service account credentials"
         ],
         "data-exfiltration": [
           "Restrict COPY INTO commands to approved internal and named external stages via RBAC grants",
           "Enable and monitor Snowflake Access History to detect bulk data export operations",
           "Use data shares with strict consumer account allowlists rather than broad sharing",
-          "Configure network policies to restrict egress to approved destinations"
+          "Set PREVENT_UNLOAD_TO_INLINE_URL and REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_CREATION/OPERATION"
         ],
         "misconfiguration": [
           "Enforce network policies restricting access to approved IP ranges at the account level",
@@ -1162,6 +1247,12 @@
           "Avoid dynamic SQL construction from user inputs in JavaScript UDFs and stored procedures",
           "Restrict CREATE FUNCTION and CREATE PROCEDURE privileges to trusted developer roles",
           "Enable query profiling and monitor for anomalous query patterns targeting system tables"
+        ],
+        "data-lake-governance-bypass": [
+          "Apply masking and row access policies through tag-based policies",
+          "Keep exempt-role checks in policy bodies narrow (IS_ROLE_IN_SESSION on a dedicated role) and review grants of those roles",
+          "Require storage integrations for all stages and restrict USAGE on stages and external tables over governed data to engineering roles",
+          "Audit policy coverage with the POLICY_REFERENCES function and ACCESS_HISTORY policies_referenced to find sensitive columns read without a policy"
         ]
       }
     },
@@ -1188,7 +1279,7 @@
         "excessive-permissions": "Falcon Admin roles assigned broadly, API client scopes granting full RTR access, Falcon Complete managed service with unrestricted response capabilities, detection suppression permissions too widely granted",
         "sensitive-data-exposure": "Endpoint telemetry containing file paths and process details, vulnerability assessment data revealing unpatched systems, detection details exposing attack techniques used against the organization, host inventory revealing infrastructure topology",
         "third-party-integration-risk": "SIEM integrations receiving full detection feed, SOAR platform connections with RTR execution capability, third-party Falcon Store apps with sensor data access, Falcon Data Replicator streaming to external S3 buckets",
-        "supply-chain-attack": "Sensor update distribution (as demonstrated in July 2024 incident), compromised Falcon Store marketplace apps, malicious content updates affecting detection logic",
+        "supply-chain-attack": "Faulty or malicious Rapid Response Content pushed to every sensor at kernel level (July 2024 Channel File 291 crash bypassed sensor N-1 policies), compromised sensor builds, malicious Falcon Store / Foundry apps, attacker abuse of the vendor's trusted management channel to all endpoints",
         "remote-command-execution": "Real Time Response (RTR) enabling arbitrary command execution on endpoints, RTR scripts executing PowerShell/Bash on managed hosts, automated response workflows triggering remediation actions"
       },
       "threatMitigations": {
@@ -1217,7 +1308,7 @@
           "Audit detection suppression and exclusion permissions to prevent unauthorized visibility reduction"
         ],
         "sensitive-data-exposure": [
-          "Configure Falcon Data Protection policies to limit collection of sensitive file content from endpoints",
+          "Turn off RTR get and memdump commands in Falcon response policies for host groups that do not need file or memory retrieval",
           "Use Falcon RBAC to restrict access to vulnerability assessment and host inventory data",
           "Control Falcon Data Replicator (FDR) output destinations and encrypt data at rest in target S3 buckets",
           "Limit access to detection details and incident workbench data to authorized security analysts only"
@@ -1232,7 +1323,8 @@
           "Configure sensor update policies to use N-1 or N-2 release channels rather than the latest build",
           "Use staged sensor deployment with a canary host group before rolling updates to production",
           "Review Falcon Store app updates and changelogs before approving in your environment",
-          "Monitor CrowdStrike status page and advisories for supply chain incident notifications"
+          "Monitor CrowdStrike status page and advisories for supply chain incident notifications",
+          "Configure each Falcon content update policy to pause or delay Rapid Response Content for critical host groups and deploy it first to an early-access pilot group"
         ],
         "remote-command-execution": [
           "Restrict Real Time Response to specific admin roles with 'RTR Active Responder' or 'RTR Admin' granularity",
@@ -1275,7 +1367,7 @@
         ],
         "credential-theft": [
           "Rotate Datadog API keys and application keys regularly via the Datadog API Key management page",
-          "Use scoped application keys tied to specific service accounts rather than global API keys",
+          "Limit Datadog application keys with scopes and tie them to service accounts, and keep API keys out of client code",
           "Store DD_API_KEY and DD_APP_KEY in a secrets manager rather than environment variables or config files",
           "Monitor Datadog Audit Trail for API key creation, deletion, and usage from unexpected sources"
         ],
@@ -1295,7 +1387,7 @@
           "Restrict Log Archive destinations to approved S3/GCS/Azure Storage accounts with cross-account access controls",
           "Use Datadog RBAC to limit which users can create or modify log archives and pipelines",
           "Monitor Audit Trail for dashboard snapshot creation, notebook exports, and API-based data queries",
-          "Configure API rate limiting and alert on unusual volumes of metric or log query API calls"
+          "Alert through Audit Trail and monitors on unusual volumes of metric, log or trace query API calls per application key"
         ],
         "third-party-integration-risk": [
           "Review cloud integration IAM roles (AWS, GCP, Azure) and scope permissions to read-only monitoring access",
@@ -1305,7 +1397,6 @@
         ],
         "excessive-permissions": [
           "Run Datadog Agent as a non-root user where possible, using the agent-specific dd-agent user on Linux",
-          "Use scoped application keys with RBAC restrictions instead of full-access organization API keys",
           "Define granular Datadog RBAC roles limiting access to specific dashboards, logs, and APM data",
           "Scope cloud integration IAM roles to read-only permissions on specific services rather than full admin access"
         ]
@@ -1366,7 +1457,7 @@
         ],
         "data-exfiltration": [
           "Use PagerDuty RBAC to restrict which roles can access Analytics reports and export incident data",
-          "Limit REST API key permissions to specific resource types (e.g., incidents only, not users or schedules)",
+          "Issue read-only general access keys or scoped OAuth tokens limited to the objects each integration needs",
           "Monitor audit records for bulk incident list API calls and large data export operations",
           "Restrict on-call schedule and user list API access to authorized automation service accounts only"
         ]
@@ -1392,7 +1483,7 @@
       "threatContext": {
         "injection-attack": "SQL injection through Retool query builders with raw SQL mode enabled, JavaScript injection in custom Retool components, server-side template injection in Retool workflows processing user inputs",
         "unauthorized-access": "Retool apps exposing admin functionality to unauthorized users via misconfigured page permissions, SSO bypass through local Retool accounts not disabled, API endpoints generated by Retool apps accessible without authentication",
-        "misconfiguration": "Retool resource connections using production database credentials with full write access, apps deployed to production with debug mode enabled exposing query results, public sharing enabled on internal tools containing sensitive data",
+        "misconfiguration": "Retool resource connections using production database credentials with full write access, apps deployed to production with debug mode enabled exposing query results, internal tools opened to external users or broad permission groups",
         "sensitive-data-exposure": "Production database query results displayed in Retool apps without column-level masking, audit logs capturing sensitive query parameters, Retool workflow outputs containing PII stored in workflow history",
         "data-exfiltration": "Bulk data extraction through Retool table components with export enabled and no row limits, API queries executed through Retool with broad SELECT permissions returning full datasets, workflow outputs forwarded to external systems without data filtering",
         "credential-theft": "Database connection strings and API keys stored in Retool resource configurations, OAuth tokens for integrated services accessible to Retool app builders, environment variables containing secrets exposed in Retool workflows",
@@ -1414,10 +1505,10 @@
         "misconfiguration": [
           "Use separate Retool resource connections per environment with read-only credentials for production databases",
           "Disable the export button and raw data access on table components displaying sensitive information",
-          "Enforce Retool's protected apps feature to prevent accidental public sharing of internal tools"
+          "Keep internal tools out of external apps and review Settings > External apps and app permission groups for unintended audiences"
         ],
         "sensitive-data-exposure": [
-          "Configure column-level access controls in Retool to mask sensitive fields in query results",
+          "Remove sensitive columns in the query itself rather than hiding them in a table component",
           "Restrict Retool audit log access and configure retention policies that comply with data handling requirements",
           "Use Retool environments to prevent production data from appearing in development app previews"
         ],
@@ -1463,7 +1554,8 @@
         "misconfiguration",
         "oauth-token-abuse",
         "third-party-integration-risk",
-        "credential-theft"
+        "credential-theft",
+        "saas-data-leakage"
       ],
       "threatContext": {
         "account-takeover": "HubSpot portal credential phishing, Super Admin account compromise enabling full CRM access, SSO bypass via direct HubSpot authentication, compromised marketing user sending phishing campaigns from trusted domain",
@@ -1472,7 +1564,8 @@
         "misconfiguration": "Marketing email sending domain misconfiguration enabling spoofing, CRM property-level permissions not restricting sensitive fields, public forms collecting sensitive data without encryption disclosure, tracking code collecting visitor data without consent",
         "oauth-token-abuse": "Malicious marketplace apps requesting crm.objects.contacts.read scopes, private app access tokens with full CRM access, OAuth refresh token persistence for long-term data collection, compromised integration tokens accessing deal and contact data",
         "third-party-integration-risk": "HubSpot App Marketplace integrations with broad CRM access, native integrations syncing data to external platforms (Salesforce, Slack), custom workflow actions sending data to third-party endpoints, data sync connections creating bidirectional data flows",
-        "credential-theft": "HubSpot API keys (deprecated but still active in older integrations) exposed in source code, private app access tokens in CI/CD pipelines, developer API keys in client-side JavaScript, SMTP credentials for transactional email"
+        "credential-theft": "HubSpot API keys (deprecated but still active in older integrations) exposed in source code, private app access tokens in CI/CD pipelines, developer API keys in client-side JavaScript, SMTP credentials for transactional email",
+        "saas-data-leakage": "File Manager uploads public and search-indexable by default, public quote, document and meeting links, knowledge base and customer portal content open to anyone"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -1516,6 +1609,11 @@
           "Store HubSpot private app tokens and SMTP credentials in a secrets manager rather than source code",
           "Rotate private app access tokens periodically and revoke tokens for decommissioned integrations",
           "Avoid embedding HubSpot developer API keys in client-side JavaScript; use server-side proxy patterns"
+        ],
+        "saas-data-leakage": [
+          "Set File Manager uploads containing customer or internal data to Private and audit files left Public",
+          "Set already-indexed sensitive files to Private and request removal with Google Search Console",
+          "Restrict knowledge base and customer portal access to verified contacts where content is not meant to be public"
         ]
       }
     },
@@ -1532,7 +1630,8 @@
         "misconfiguration",
         "credential-theft",
         "third-party-integration-risk",
-        "oauth-token-abuse"
+        "oauth-token-abuse",
+        "saas-data-leakage"
       ],
       "threatContext": {
         "account-takeover": "Agent credential phishing via fake Zendesk login pages, admin account compromise enabling full ticket access, SSO provider takeover cascading to support platform, session hijacking targeting agents handling sensitive customer data",
@@ -1541,7 +1640,8 @@
         "misconfiguration": "Help Center articles publicly accessible with internal procedures, ticket forms collecting sensitive data without proper field restrictions, email channel parsing exposing full email threads, agent workspace permissions allowing cross-team ticket visibility",
         "credential-theft": "Zendesk API tokens exposed in integration configs, OAuth access tokens for Zendesk API in automation tools, webhook authentication tokens in source code, admin API keys in deployment scripts",
         "third-party-integration-risk": "Zendesk Marketplace apps with ticket read/write access, Sunshine Conversations (messaging) integrations with customer data access, third-party analytics tools receiving ticket data, CRM integrations syncing customer details bidirectionally",
-        "oauth-token-abuse": "Malicious Zendesk apps requesting tickets:read scope, OAuth token theft from compromised integrations, API token persistence for automated ticket data collection, compromised Zendesk Connect tokens accessing user profiles"
+        "oauth-token-abuse": "Malicious Zendesk apps requesting tickets:read scope, OAuth token theft from compromised integrations, API token persistence for automated ticket data collection, compromised Zendesk Connect tokens accessing user profiles",
+        "saas-data-leakage": "Help Center articles and community posts visible to anyone, CC'd or forwarded email addresses gaining access to ticket threads, email-submitted tickets letting outsiders join conversations by spoofing or CC, public ticket comments carrying internal detail"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -1585,6 +1685,11 @@
           "Regularly audit authorized OAuth apps in Admin Center and revoke unused or suspicious application tokens",
           "Scope OAuth app permissions to minimum required ticket, user, and organization access levels",
           "Monitor Zendesk audit log for new OAuth application authorizations and scope changes"
+        ],
+        "saas-data-leakage": [
+          "Restrict Help Center content to signed-in users or user segments for anything not meant to be public",
+          "Restrict which external addresses end users can add as CCs and followers on email tickets",
+          "Require Help Center sign-in for requesters on tickets that expose account data rather than trusting the email sender"
         ]
       }
     },
@@ -1600,7 +1705,8 @@
         "unauthorized-access",
         "supply-chain-attack",
         "injection-attack",
-        "dos-attack"
+        "dos-attack",
+        "credential-theft"
       ],
       "threatContext": {
         "misconfiguration": "Preview deployments publicly accessible without authentication, permissive CORS headers on serverless functions, exposed source maps in production builds, missing security headers (CSP, HSTS), unprotected API routes without authentication middleware",
@@ -1608,24 +1714,25 @@
         "unauthorized-access": "Deployment protection bypass on preview URLs via shared links, unauthenticated serverless function endpoints, missing authentication on API routes, team member access persisting after offboarding, public access to deployment metadata",
         "supply-chain-attack": "Compromised npm dependencies in build pipeline, malicious Git integration hooks injecting code during deployment, poisoned build cache artifacts, compromised Vercel Marketplace integrations, dependency confusion attacks during serverless function bundling",
         "injection-attack": "Server-side code injection in serverless functions via unsanitized request parameters, edge function middleware bypass through crafted headers, SSRF via serverless functions accessing internal services, template injection in server-rendered pages",
-        "dos-attack": "Serverless function invocation flooding exceeding concurrency limits, edge function compute abuse causing cost escalation, bandwidth exhaustion on static assets, recursive serverless function calls causing cascading failures"
+        "dos-attack": "Serverless function invocation flooding exceeding concurrency limits, edge function compute abuse causing cost escalation, bandwidth exhaustion on static assets, recursive serverless function calls causing cascading failures",
+        "credential-theft": "Vercel access tokens in CI or developer machines used to pull all project environment variables (vercel env pull), deploy hook URLs leaked in repos letting anyone trigger builds, team tokens with full scope, npm token theft from build steps by worm-style packages"
       },
       "threatMitigations": {
         "misconfiguration": [
           "Enable Vercel Deployment Protection to require authentication for preview and production deployments",
           "Configure appropriate security headers (CSP, HSTS, X-Frame-Options) in vercel.json or Next.js middleware",
-          "Disable source maps in production builds via NEXT_PUBLIC_SOURCEMAP=false or build configuration",
+          "Keep productionBrowserSourceMaps disabled in next.config.js, or upload source maps to your error tracker without publishing them",
           "Use Vercel's environment variable scoping to separate Preview, Production, and Development secrets"
         ],
         "sensitive-data-exposure": [
           "Never use NEXT_PUBLIC_ prefix for environment variables containing secrets, API keys, or database credentials",
           "Enable Vercel Deployment Protection to prevent unauthenticated access to preview deployment URLs",
           "Use Vercel's encrypted environment variables and limit access to production secrets to the production environment only",
-          "Review build logs for leaked secrets and enable Vercel's automatic secret detection in build output"
+          "Store credentials as Secret-type environment variables"
         ],
         "unauthorized-access": [
           "Enable Vercel Deployment Protection with password or Vercel Authentication for preview deployments",
-          "Implement authentication middleware in Next.js API routes and serverless functions",
+          "Enforce authentication in each route handler or server action rather than only in Next.js middleware",
           "Use Vercel's team-based access controls and remove team members promptly during offboarding",
           "Restrict Vercel project access tokens to minimum required scopes and rotate them regularly"
         ],
@@ -1643,9 +1750,14 @@
         ],
         "dos-attack": [
           "Configure Vercel Spend Management alerts and spending limits to prevent cost escalation from function abuse",
-          "Use Vercel Edge Config or middleware-based rate limiting on API routes and serverless functions",
+          "Configure Vercel WAF rate limiting rules on API routes and login endpoints, and enable Attack Mode during a targeted attack",
           "Enable Vercel's DDoS protection and configure firewall rules to block abusive IP ranges",
           "Implement request timeout limits and circuit breakers in serverless functions to prevent cascading failures"
+        ],
+        "credential-theft": [
+          "Store credentials as Secret-type environment variables",
+          "Use team-scoped Vercel access tokens with expiry for CI, and revoke tokens and rotate project environment variables after any exposure",
+          "Protect deploy hooks as secrets and use Vercel's OIDC federation for cloud access from functions instead of static cloud keys in environment variables"
         ]
       }
     },
@@ -1665,7 +1777,7 @@
         "privilege-escalation"
       ],
       "threatContext": {
-        "credential-theft": "State file containing plaintext credentials, database passwords, and API keys; VCS connection OAuth tokens enabling repository access; workspace environment variables storing cloud provider credentials; remote execution context exposing TFC API tokens and provider credentials during plan/apply",
+        "credential-theft": "State files with plaintext secrets, workspace variables with cloud credentials, VCS OAuth tokens, and code execution during plan: a PR or stolen token triggering a speculative plan runs attacker-controlled external data sources and providers with the workspace's credentials",
         "misconfiguration": "Remote state accessible without proper workspace permissions, overly permissive run triggers allowing cross-workspace execution, Sentinel policies in advisory-only mode failing to enforce compliance, workspace auto-apply enabled without manual approval gates, variable sets with excessive scope applied organization-wide",
         "supply-chain-attack": "Poisoned modules in private or public Terraform Registry, compromised provider binaries executing during init, malicious .terraformrc overrides redirecting provider downloads, dependency confusion via typosquatted module names, compromised VCS webhooks triggering unauthorized runs with modified code",
         "unauthorized-access": "Workspace access through inherited team permissions, API token theft enabling remote state manipulation, SSO bypass via local account fallback, unauthenticated access to state file outputs, run task callbacks from untrusted endpoints",
@@ -1678,7 +1790,9 @@
           "Mark all workspace variables containing credentials as 'Sensitive' to prevent read-back via API or UI",
           "Use dynamic provider credentials (e.g., TFC workload identity with OIDC) instead of static cloud provider keys",
           "Enable state file encryption and restrict state access to authorized workspaces via remote state sharing permissions",
-          "Rotate VCS OAuth tokens and API tokens regularly and store them in Terraform Cloud's built-in variable encryption"
+          "Rotate VCS OAuth tokens and API tokens regularly and store them in Terraform Cloud's built-in variable encryption",
+          "Use separate plan and apply identities with dynamic credentials (TFC_AWS_PLAN_ROLE_ARN / TFC_AWS_APPLY_ROLE_ARN), giving the plan identity read-only cloud access",
+          "Treat plan permission as write: grant it only to trusted teams and disable automatic speculative plans on workspaces that hold production credentials"
         ],
         "misconfiguration": [
           "Write Sentinel policies in hard-mandatory mode to enforce security compliance on all runs",
@@ -1690,7 +1804,8 @@
           "Use a private module registry and pin module versions rather than referencing public registry modules by latest",
           "Verify provider checksums via terraform lock files (.terraform.lock.hcl) committed to version control",
           "Restrict VCS webhook permissions to specific repositories and validate webhook signatures",
-          "Enable run task integrations for security scanning (Snyk, Checkov) to check plans before apply"
+          "Enable run task integrations for security scanning (Snyk, Checkov) to check plans before apply",
+          "Rotate workspace variables, team tokens and VCS OAuth tokens immediately when a module, provider or run task compromise is disclosed"
         ],
         "unauthorized-access": [
           "Enforce SSO with SAML 2.0 and disable direct login to Terraform Cloud organization accounts",
@@ -1730,7 +1845,8 @@
         "broken-authentication",
         "misconfiguration",
         "sensitive-data-exposure",
-        "credential-theft"
+        "credential-theft",
+        "excessive-permissions"
       ],
       "threatContext": {
         "account-takeover": "Credential stuffing against Auth0 Universal Login, MFA bypass through social engineering of recovery flows, phishing via custom-domain login pages, tenant admin compromise enabling global configuration changes",
@@ -1738,7 +1854,8 @@
         "broken-authentication": "Weak password policy in database connections, passwordless magic link interception, misconfigured social login providers allowing account linking attacks, brute force against Resource Owner Password Grant",
         "misconfiguration": "Wildcard allowed callback URLs enabling token redirect, overly permissive CORS origins, tenant-level debugging enabled in production, custom database scripts with injection vulnerabilities, disabled brute force protection",
         "sensitive-data-exposure": "User metadata containing PII stored in Auth0 profiles, authentication logs exposing IP addresses and device fingerprints, Management API responses containing user secrets, custom claims in JWTs leaking internal user attributes",
-        "credential-theft": "Auth0 Management API client secrets exposed in frontend code, database connection credentials in Action/Rule scripts, client secrets in public SPA configurations, API keys in Auth0 Deploy CLI configuration files"
+        "credential-theft": "Auth0 Management API client secrets exposed in frontend code, database connection credentials in Action/Rule scripts, client secrets in public SPA configurations, API keys in Auth0 Deploy CLI configuration files",
+        "excessive-permissions": "Machine-to-machine applications granted broad Management API scopes (read:users, update:users, create:client_grants), every dashboard member holding the full Admin role, Management API tokens with tenant-wide scopes reused across services"
       },
       "threatMitigations": {
         "account-takeover": [
@@ -1776,6 +1893,11 @@
           "Never embed Auth0 client secrets in SPA or mobile app code; use Authorization Code with PKCE for public clients",
           "Audit Auth0 Actions and Rules for hardcoded database credentials and migrate to Auth0 Secrets storage",
           "Restrict Auth0 Deploy CLI credentials and API explorer tokens to CI/CD pipelines with scoped permissions"
+        ],
+        "excessive-permissions": [
+          "Grant each machine-to-machine application only the Management API scopes it needs and review client grants regularly",
+          "Use restricted Auth0 Dashboard roles (Viewer or Editor roles) instead of full Admin for day-to-day tenant members",
+          "Require MFA for all tenant members and remove dashboard access promptly when staff leave"
         ]
       }
     },
@@ -1789,19 +1911,21 @@
         "sensitive-data-exposure",
         "misconfiguration",
         "unauthorized-access",
-        "credential-theft"
+        "credential-theft",
+        "account-takeover"
       ],
       "threatContext": {
         "sensitive-data-exposure": "Payment card data (PAN, CVV) exposed through improper Stripe.js integration, customer PII in Charge/PaymentIntent metadata, bank account details in Connect payouts, invoice data containing billing addresses and financial details",
         "misconfiguration": "Publishable keys used where secret keys are required, webhook signature verification not implemented, overly permissive API key scopes (full access instead of restricted keys), test mode keys accidentally used in production, missing idempotency keys causing duplicate charges",
         "unauthorized-access": "Unauthorized access to Stripe Dashboard enabling refund abuse, Connect account impersonation via insufficient platform verification, customer portal session hijacking for subscription manipulation, unauthorized access to Financial Connections bank data",
-        "credential-theft": "Stripe secret API keys committed to source code repositories, webhook signing secrets exposed in server logs, Connect OAuth client secrets in environment variables, restricted API keys with excessive permissions stored in CI/CD pipelines"
+        "credential-theft": "Stripe secret API keys committed to source code repositories, webhook signing secrets exposed in server logs, Connect OAuth client secrets in environment variables, restricted API keys with excessive permissions stored in CI/CD pipelines",
+        "account-takeover": "Dashboard sign-in with phished or reused credentials or SIM-swapped SMS codes, then payout bank account changes, refunds to attacker cards, and new API keys or webhook endpoints for persistence"
       },
       "threatMitigations": {
         "sensitive-data-exposure": [
           "Use Stripe.js and Elements to collect payment card data client-side without it touching your servers, maintaining PCI DSS SAQ A eligibility",
           "Avoid storing sensitive PII in Stripe Charge or PaymentIntent metadata fields; use references to your own encrypted database instead",
-          "Enable Stripe's automatic PAN redaction in API logs and Dashboard views",
+          "Display and match cards using the PaymentMethod last4 and fingerprint fields instead of storing or logging full card numbers in your own systems",
           "Restrict access to Stripe Dashboard financial data using team member roles with granular permissions"
         ],
         "misconfiguration": [
@@ -1820,7 +1944,13 @@
           "Store Stripe secret API keys and webhook signing secrets in a secrets manager rather than source code or environment files",
           "Use Stripe Restricted API Keys with minimum required permissions for each integration or microservice",
           "Rotate Stripe API keys periodically and immediately revoke keys exposed in source control or logs",
-          "Audit active API keys in Stripe Dashboard > Developers and remove keys for decommissioned services"
+          "Audit active API keys in Stripe Dashboard > Developers and remove keys for decommissioned services",
+          "Restrict secret and restricted API keys to your servers' egress IP ranges using the key's Manage IP restrictions setting"
+        ],
+        "account-takeover": [
+          "Enforce SSO through your IdP or turn on Require two-step authentication for the team, and have every member enrol a passkey or security key rather than SMS",
+          "Assign least-privilege team roles and limit Administrator and payout-editing permissions to a few named users",
+          "Alert on payout bank account, team member and API key changes using Stripe Dashboard email notifications and security history"
         ]
       }
     },
@@ -1836,7 +1966,8 @@
         "data-exfiltration",
         "misconfiguration",
         "backup-exposure",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "credential-theft"
       ],
       "threatContext": {
         "nosql-injection": "MongoDB operator injection via $gt/$ne/$regex in unsanitized query parameters, JavaScript injection through $where clauses, aggregation pipeline manipulation via user-controlled $lookup stages, BSON injection through improperly typed inputs",
@@ -1844,7 +1975,8 @@
         "data-exfiltration": "mongoexport/mongodump for bulk data extraction, aggregation pipeline $out writing to attacker-controlled collections, Atlas Data Federation querying across clusters, change streams capturing real-time data modifications for exfiltration",
         "misconfiguration": "IP access list set to 0.0.0.0/0 allowing global access, authentication disabled on cluster, Atlas audit logging not enabled, Network Peering misconfiguration exposing cluster to unintended VPCs, default database users with readWriteAnyDatabase role",
         "backup-exposure": "Cloud backup snapshots accessible via compromised Atlas API keys, continuous backup oplog data containing sensitive writes, snapshot export to attacker-controlled S3/Azure/GCS buckets, point-in-time restore used to access deleted sensitive data",
-        "sensitive-data-exposure": "Unencrypted fields containing PII in document collections, Atlas Search indexes exposing sensitive field values, Performance Advisor showing query patterns with sensitive filter values, connection strings with embedded credentials in application logs"
+        "sensitive-data-exposure": "Unencrypted fields containing PII in document collections, Atlas Search indexes exposing sensitive field values, Performance Advisor showing query patterns with sensitive filter values, connection strings with embedded credentials in application logs",
+        "credential-theft": "Atlas programmatic API keys or service account secrets in IaC and CI, database user passwords embedded in SRV connection strings in app configs and logs, X.509 client certificates on app hosts, mongosh history files"
       },
       "threatMitigations": {
         "nosql-injection": [
@@ -1872,7 +2004,7 @@
         ],
         "backup-exposure": [
           "Enable Atlas encryption at rest using customer-managed keys (CMK) via AWS KMS, Azure Key Vault, or GCP KMS for backup encryption",
-          "Restrict Atlas API key permissions for backup operations to the minimum required project role (e.g., Project Read Only for monitoring)",
+          "Restrict who holds Project Owner and Project Backup Manager roles",
           "Configure backup snapshot retention policies and ensure snapshots are automatically deleted after the retention window",
           "Monitor Atlas audit logs for snapshot restore and export operations to detect unauthorized backup access"
         ],
@@ -1881,6 +2013,10 @@
           "Configure Atlas Search index definitions to exclude sensitive fields from search indexing",
           "Avoid embedding credentials in MongoDB connection strings; use secrets managers and rotate passwords regularly",
           "Use Atlas Database Access roles with field-level restrictions to limit which users can read sensitive document fields"
+        ],
+        "credential-theft": [
+          "Use Atlas service accounts (OAuth 2.0) with short-lived tokens and an API access list instead of long-lived programmatic API keys",
+          "Store database user credentials in a secrets manager or use AWS IAM / Workload Identity Federation authentication instead of passwords in connection strings"
         ]
       }
     },
@@ -1903,7 +2039,7 @@
         "sql-injection": "SQL injection through application queries via Neon's PostgreSQL wire protocol or serverless HTTP SQL API (/sql endpoint), RPC function calls with unsanitized inputs, dynamic SQL in server-side functions on branched databases accessible to wider audiences",
         "unauthorized-access": "Connection string exposure granting full database access, branch-level access not scoped per developer allowing access to production data copies, API key theft enabling project and branch management operations",
         "misconfiguration": "Database branches created from production without masking sensitive data, compute endpoints left active without IP allowlisting, default roles with superuser-equivalent permissions on project databases",
-        "sensitive-data-exposure": "Production data cloned into development branches without PII masking, connection strings containing credentials logged in application environments, query results cached in Neon's serverless driver connection pooler",
+        "sensitive-data-exposure": "Production data cloned into development branches without PII masking, connection strings with credentials logged in application environments, preview branches created per pull request exposing production data to every developer and CI job",
         "data-exfiltration": "Bulk data extraction via direct PostgreSQL connections to branched databases, pg_dump execution through compromised connection strings, Neon API used to create new branches with full production data copies for offline extraction",
         "backup-exposure": "Point-in-time restore creating accessible branches from historical data, branch snapshots containing sensitive data accessible via Neon console or API",
         "credential-theft": "Neon connection strings with embedded passwords leaked in .env files, CI/CD pipeline logs, or application error messages, Neon API keys stolen from developer machines enabling project and branch management, PostgreSQL role passwords extracted from configuration management or IaC state files"
@@ -1911,7 +2047,6 @@
       "threatMitigations": {
         "sql-injection": [
           "Use parameterized queries and prepared statements in all application code connecting to Neon",
-          "Enable Neon's connection pooler with PgBouncer to enforce prepared statement mode",
           "Apply PostgreSQL row-level security (RLS) policies as defense-in-depth against SQL injection"
         ],
         "unauthorized-access": [
@@ -1921,7 +2056,7 @@
           "Create dedicated PostgreSQL roles per application with minimal required privileges"
         ],
         "misconfiguration": [
-          "Implement data masking on branches created from production to prevent sensitive data exposure in development environments",
+          "Create development branches as schema-only branches, or anonymise data before sharing",
           "Configure compute auto-suspend timeouts to minimize the attack window on idle database endpoints",
           "Restrict Neon project member roles and audit API key usage through the Neon console"
         ],
@@ -1932,13 +2067,12 @@
         ],
         "data-exfiltration": [
           "Restrict pg_dump and COPY TO capabilities by revoking superuser-equivalent roles from application database users",
-          "Monitor Neon API calls for unauthorized branch creation that could be used to clone production data",
-          "Configure Neon compute endpoint connection limits to detect and prevent bulk extraction attempts"
+          "Monitor Neon API calls for unauthorized branch creation that could be used to clone production data"
         ],
         "backup-exposure": [
           "Restrict Neon project API access to prevent unauthorized point-in-time restore operations",
           "Audit branch creation events in Neon to detect unexpected restore-from-backup operations",
-          "Configure branch retention policies to automatically delete old branches containing historical data"
+          "Set the project restore window (history retention) to the minimum needed and use branch expiration on preview and CI branches"
         ],
         "credential-theft": [
           "Store Neon connection strings in a secrets manager and inject at runtime rather than embedding in application config files or environment variables",
@@ -1968,7 +2102,7 @@
       },
       "threatMitigations": {
         "supply-chain-attack": [
-          "Enable Docker Hub Content Trust (DCT) to verify image signatures and reject unsigned images",
+          "Require cosign or Notation signatures and verify them at admission",
           "Use Docker Official Images and Docker Verified Publisher images as base layers rather than unverified community images",
           "Enable Docker Scout vulnerability scanning on repositories to detect known CVEs in image layers",
           "Pin base image digests (sha256) instead of mutable tags to prevent tag replacement attacks"
@@ -1983,13 +2117,14 @@
           "Set default repository visibility to private in Docker Hub organization settings",
           "Audit automated build configurations to ensure they pull only from trusted source repositories",
           "Restrict webhook destinations to approved internal CI/CD endpoints only",
-          "Create access tokens with minimum required scopes (e.g., read-only for CI pull operations)"
+          "Create access tokens with minimum required scopes (e.g., read-only for CI pull operations)",
+          "Restrict pulls to approved publishers and namespaces with Docker Business Registry Access Management and Image Access Management"
         ],
         "sensitive-data-exposure": [
           "Use Docker BuildKit multi-stage builds to prevent secrets from persisting in final image layers",
           "Use Docker BuildKit --secret flag to mount secrets at build time without baking them into layers",
           "Add .dockerignore rules to exclude .env files, private keys, and credentials from the build context",
-          "Enable Docker Scout to scan images for exposed secrets, hardcoded credentials, and sensitive environment variables"
+          "Scan images for secrets with a dedicated layer scanner (ggshield, TruffleHog) in CI before push"
         ]
       }
     },
@@ -2005,7 +2140,9 @@
         "misconfiguration",
         "sensitive-data-exposure",
         "data-exfiltration",
-        "broken-authentication"
+        "broken-authentication",
+        "bucket-misconfiguration",
+        "credential-theft"
       ],
       "threatContext": {
         "nosql-injection": "Firestore query manipulation via unsanitized client-side query parameters, Realtime Database path traversal through crafted ref() calls, Cloud Functions processing unvalidated request body data for database operations",
@@ -2013,7 +2150,9 @@
         "misconfiguration": "Realtime Database rules set to '.read: true, .write: true' exposing all data, Firestore rules with overly broad wildcard matches, Firebase project API keys exposed (not restricted to specific APIs), App Check not enforced allowing direct API abuse, Cloud Functions deployed without authentication requirements",
         "sensitive-data-exposure": "Firebase config object (apiKey, authDomain, databaseURL) exposed in client-side JavaScript, user PII stored in Realtime Database accessible via REST API, Firestore documents containing sensitive data without field-level security rules, Firebase Analytics collecting user data without consent controls",
         "data-exfiltration": "Realtime Database full export via REST API (/.json endpoint), Firestore collection group queries extracting data across subcollections, Firebase Storage bucket enumeration and bulk download, Cloud Functions used as data proxy to exfiltrate to external endpoints",
-        "broken-authentication": "Firebase Authentication email enumeration via fetchSignInMethodsForEmail, weak password requirements in email/password provider, custom token generation with insufficient validation, anonymous authentication upgrade attacks, OAuth provider misconfiguration allowing account takeover via unverified email claims"
+        "broken-authentication": "Firebase Authentication email enumeration via fetchSignInMethodsForEmail, weak password requirements in email/password provider, custom token generation with insufficient validation, anonymous authentication upgrade attacks, OAuth provider misconfiguration allowing account takeover via unverified email claims",
+        "bucket-misconfiguration": "Cloud Storage for Firebase rules left as allow read, write: if true or only checking request.auth != null, letting any user list, overwrite or download every file, default bucket readable through the firebasestorage.googleapis.com REST endpoint, user uploads served without per-path ownership checks",
+        "credential-theft": "Firebase Admin SDK service account JSON keys committed to repos or bundled in apps, bypassing all Security Rules, third-party secrets kept in legacy functions.config() or .env files instead of Secret Manager, Firebase CLI tokens (firebase login:ci) in CI logs"
       },
       "threatMitigations": {
         "nosql-injection": [
@@ -2051,6 +2190,16 @@
           "Configure strong password requirements in Firebase Auth settings (minimum length, complexity)",
           "Require email verification before granting access to protected resources via Security Rules checking request.auth.token.email_verified",
           "Review OAuth provider configurations and enforce email verification for social sign-in providers to prevent account takeover via unverified email claims"
+        ],
+        "bucket-misconfiguration": [
+          "Write Cloud Storage Security Rules that match per-user paths (request.auth.uid == userId) and validate contentType and size on every write",
+          "Test Storage rules in the Firebase Emulator Suite and Rules Playground before deploy, and never ship allow read, write: if true",
+          "Enforce App Check on Cloud Storage for Firebase and alert on budget or egress spikes from the default bucket"
+        ],
+        "credential-theft": [
+          "Keep Admin SDK service account keys out of repos and clients; on Google infrastructure use attached service accounts instead of JSON keys",
+          "Disable service account key creation with the iam.disableServiceAccountKeyCreation organization policy and rotate any existing Admin SDK keys",
+          "Scan repos and app bundles for service account JSON and Firebase CLI tokens, and revoke them with firebase logout --token on exposure"
         ]
       }
     },
@@ -2066,7 +2215,9 @@
         "misconfiguration",
         "sensitive-data-exposure",
         "data-exfiltration",
-        "broken-authentication"
+        "broken-authentication",
+        "bucket-misconfiguration",
+        "credential-theft"
       ],
       "threatContext": {
         "sql-injection": "Direct PostgreSQL access via exposed connection strings, SQL injection through PostgREST API filters (e.g., crafted .or()/.filter() parameters), raw SQL execution in Edge Functions or server-side clients bypassing parameterization, RPC function calls with unsanitized inputs",
@@ -2074,7 +2225,9 @@
         "misconfiguration": "Row Level Security (RLS) not enabled on tables leaving data publicly accessible via anon key, overly permissive RLS policies using auth.role() = 'authenticated' without user-specific checks, Storage buckets set to public allowing unauthenticated file access, service_role key used in client-side code, Realtime subscriptions enabled on sensitive tables without RLS",
         "sensitive-data-exposure": "PostgREST API auto-exposing all columns in public schema tables, Realtime subscriptions broadcasting row changes including sensitive fields to subscribed clients, auth.users table metadata leakage via admin API, Storage object metadata and signed URLs exposing file contents, database connection strings in client-side environment variables",
         "data-exfiltration": "Bulk data extraction via PostgREST API with permissive RLS or no RLS (SELECT * without pagination limits), Storage bucket enumeration and mass file download, database dumps via exposed direct PostgreSQL connection strings, Realtime change feed capture for continuous data siphoning, pg_dump execution through compromised service_role credentials",
-        "broken-authentication": "Auth provider misconfiguration allowing OAuth account linking without email verification, JWT secret exposure enabling token forgery, email enumeration via sign-up and password reset endpoints, weak password policies in email/password auth, magic link token interception, disabled email confirmation allowing immediate account access"
+        "broken-authentication": "Auth provider misconfiguration allowing OAuth account linking without email verification, JWT secret exposure enabling token forgery, email enumeration via sign-up and password reset endpoints, weak password policies in email/password auth, magic link token interception, disabled email confirmation allowing immediate account access",
+        "bucket-misconfiguration": "Storage buckets created as public, where every object is readable by URL with no auth, storage.objects RLS policies granting anon or all authenticated users select/insert, long-lived signed URLs shared in apps, upsert allowed on other users' paths",
+        "credential-theft": "service_role or secret API keys leaked in frontends, repos or mobile apps (full RLS bypass), legacy JWT secret exposure allowing token forgery, database passwords in connection strings, Supabase access tokens for the Management API in CI or AI-agent (MCP) configs"
       },
       "threatMitigations": {
         "sql-injection": [
@@ -2090,7 +2243,7 @@
           "Disable the OpenAPI schema endpoint or restrict it to authenticated users to prevent table and column enumeration"
         ],
         "misconfiguration": [
-          "Enable RLS on every table and verify policies with Supabase's RLS debugger before exposing tables via the API",
+          "Enable RLS on every table and fix Security Advisor findings for tables without RLS before exposing them via the Data API",
           "Set Storage buckets to private by default and create specific RLS policies for file access",
           "Disable Realtime subscriptions on sensitive tables or enforce RLS on Realtime channels in Supabase project settings",
           "Use Supabase environment variables correctly: never put service_role key in NEXT_PUBLIC_ or client-accessible variables"
@@ -2102,7 +2255,7 @@
           "Use Supabase Vault to store and manage secrets rather than storing them in database tables"
         ],
         "data-exfiltration": [
-          "Implement RLS policies with row-count limits and require pagination to prevent bulk data extraction via the PostgREST API",
+          "Set Data API max rows and expose only the schemas and tables the client needs",
           "Restrict direct PostgreSQL connection string access to server-side services only and disable pooler access from untrusted networks",
           "Use Supabase Storage RLS policies to prevent anonymous bucket listing and mass file downloads",
           "Monitor Supabase project logs and database query patterns for unusual SELECT volumes or pg_dump activity"
@@ -2112,6 +2265,16 @@
           "Configure strong password requirements (minimum length, complexity) in Supabase Auth settings",
           "Require email verification for OAuth providers and prevent account linking with unverified email addresses",
           "Restrict magic link and OTP token validity periods to short durations and enable rate limiting on auth endpoints"
+        ],
+        "bucket-misconfiguration": [
+          "Create Storage buckets as private and serve files with short-lived signed URLs; use public buckets only for non-sensitive static assets",
+          "Write storage.objects RLS policies scoped to the caller's folder (auth.uid()) for select, insert, update and delete",
+          "Review the Security Advisor for public buckets and permissive storage policies before each release"
+        ],
+        "credential-theft": [
+          "Migrate to publishable and secret API keys and asymmetric JWT signing keys",
+          "Keep secret/service_role keys only in server-side secrets stores and Edge Function secrets, never in NEXT_PUBLIC_ or mobile app config",
+          "Connect the Supabase MCP server with project_ref and read_only=true to non-production projects only, and keep personal access tokens out of shared configs"
         ]
       }
     },
@@ -2140,7 +2303,7 @@
         "credential-theft": "OpenAI API keys (sk-...) leaked in client-side code, mobile apps, public git repos, or CI logs, project/service-account keys with organisation-wide scope reused across services, keys embedded in browser-exposed frontends",
         "excessive-permissions": "Function/tool definitions exposing high-privilege actions (database writes, shell, payment APIs) that the model can invoke autonomously, agentic tool-calling loops acting without human confirmation, overly broad function schemas",
         "insecure-output-handling": "Insecure output handling where model responses are rendered as HTML/Markdown (stored XSS), passed to eval/exec, used to build SQL, or written to shell commands without validation (OWASP LLM05:2025 Improper Output Handling)",
-        "third-party-integration-risk": "Dependence on a single external provider for availability and confidentiality, provider-side breaches or model changes affecting the application, plugins/Actions and Assistants tools reaching internal systems"
+        "third-party-integration-risk": "Dependence on a single external provider for availability and confidentiality, provider-side breaches or model changes affecting the application, remote MCP servers and connectors attached to Responses API calls reaching internal systems"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -2151,7 +2314,8 @@
         "sensitive-data-exposure": [
           "Use the OpenAI API under a Business/Enterprise agreement with zero data-retention and no-training terms rather than consumer ChatGPT for corporate data",
           "Redact or tokenise PII and secrets in a pre-processing layer before prompts are sent to the provider",
-          "Log and monitor prompt/response content in your own boundary with strict access controls rather than relying on provider-side logs"
+          "Log and monitor prompt/response content in your own boundary with strict access controls rather than relying on provider-side logs",
+          "Set store: false on Responses API calls that carry sensitive data, or use a Zero Data Retention organisation"
         ],
         "saas-data-leakage": [
           "Publish an acceptable-use policy defining what data classifications may be sent to OpenAI and enforce it with a DLP or LLM-gateway egress proxy",
@@ -2175,7 +2339,7 @@
         ],
         "third-party-integration-risk": [
           "Design for provider failure with timeouts, fallbacks, and graceful degradation, and monitor the OpenAI status page and API error rates",
-          "Review and restrict any Assistants tools, plugins, or Actions that can reach internal systems, and scope their network egress",
+          "Review and restrict remote MCP servers and connectors attached to Responses API calls, limit each with allowed_tools and require_approval, and authenticate every server you expose",
           "Maintain a vendor risk assessment and contractual data-protection terms (DPA, zero-retention) for the provider"
         ]
       }
@@ -2303,7 +2467,7 @@
         ],
         "prompt-injection": [
           "Implement input validation and output filtering on Inference Endpoints before and after model inference",
-          "Deploy Inference Endpoints with content moderation guardrails to detect and block prompt injection patterns",
+          "Screen prompts with a prompt-injection classifier (e.g. Prompt Guard) in the application before forwarding them to Inference Endpoints",
           "Restrict direct user access to Inference API endpoints by proxying through a backend service with request sanitization"
         ],
         "insecure-output-handling": [
@@ -2327,7 +2491,8 @@
         "ai-model-extraction": [
           "Use gated model access to require identity verification and approval before granting download access to sensitive models",
           "Monitor Inference Endpoint access logs for systematic querying patterns indicating model extraction attempts",
-          "Implement rate limiting on Inference Endpoints to throttle high-volume inference requests from single consumers"
+          "Implement rate limiting on Inference Endpoints to throttle high-volume inference requests from single consumers",
+          "Place private model repos in Enterprise Hub resource groups and grant read only to the members and tokens that need it"
         ]
       }
     }

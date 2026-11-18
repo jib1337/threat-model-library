@@ -7,7 +7,8 @@
       "severity": "high",
       "stride": [
         "tampering",
-        "information-disclosure"
+        "information-disclosure",
+        "elevation-of-privilege"
       ],
       "mitreTechniques": [
         {
@@ -19,6 +20,11 @@
           "id": "T1059",
           "name": "Command and Scripting Interpreter",
           "tactic": "Execution"
+        },
+        {
+          "id": "T1213.006",
+          "name": "Databases",
+          "tactic": "Collection"
         }
       ],
       "controls": [
@@ -41,6 +47,10 @@
         {
           "id": "ctrl-sql-5",
           "description": "Enable database activity monitoring and alerting"
+        },
+        {
+          "id": "ctrl-sql-6",
+          "description": "Disable database features the application does not need, such as xp_cmdshell, COPY ... PROGRAM, LOAD_FILE and linked servers"
         }
       ]
     },
@@ -51,13 +61,19 @@
       "severity": "high",
       "stride": [
         "tampering",
-        "information-disclosure"
+        "information-disclosure",
+        "elevation-of-privilege"
       ],
       "mitreTechniques": [
         {
           "id": "T1190",
           "name": "Exploit Public-Facing Application",
           "tactic": "Initial Access"
+        },
+        {
+          "id": "T1213.006",
+          "name": "Databases",
+          "tactic": "Collection"
         }
       ],
       "controls": [
@@ -76,6 +92,18 @@
         {
           "id": "ctrl-nosql-4",
           "description": "Apply principle of least privilege for database access"
+        },
+        {
+          "id": "ctrl-nosql-5",
+          "description": "Reject query operators ($ne, $gt, $regex, $where) in user-supplied JSON and coerce inputs to the expected scalar types before building queries"
+        },
+        {
+          "id": "ctrl-nosql-6",
+          "description": "Disable server-side JavaScript execution ($where, mapReduce, $function) where the application does not require it"
+        },
+        {
+          "id": "ctrl-nosql-7",
+          "description": "Enable database audit or profiler logging and alert on regex, operator-heavy or full-collection queries issued by application accounts"
         }
       ]
     },
@@ -86,7 +114,8 @@
       "severity": "high",
       "stride": [
         "spoofing",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "information-disclosure"
       ],
       "mitreTechniques": [
         {
@@ -120,6 +149,10 @@
         {
           "id": "ctrl-unauth-5",
           "description": "Regularly review and audit access permissions"
+        },
+        {
+          "id": "ctrl-unauth-6",
+          "description": "Remove public exposure of management interfaces and require access through a bastion, VPN or identity-aware proxy"
         }
       ],
       "isPathwayThreat": true,
@@ -133,18 +166,24 @@
       "severity": "medium",
       "stride": [
         "information-disclosure",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "tampering"
       ],
       "mitreTechniques": [
         {
-          "id": "T1574",
-          "name": "Hijack Execution Flow",
-          "tactic": "Stealth"
+          "id": "T1078.001",
+          "name": "Default Accounts",
+          "tactic": "Initial Access"
         },
         {
-          "id": "T1685",
-          "name": "Disable or Modify Tools",
-          "tactic": "Defense Impairment"
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        },
+        {
+          "id": "T1580",
+          "name": "Cloud Infrastructure Discovery",
+          "tactic": "Discovery"
         }
       ],
       "controls": [
@@ -167,6 +206,14 @@
         {
           "id": "ctrl-misconf-5",
           "description": "Follow cloud provider security best practices"
+        },
+        {
+          "id": "ctrl-misconf-6",
+          "description": "Enforce CIS-aligned configuration baselines with organisation-level guardrails (AWS SCPs, Azure Policy, GCP Organization Policies)"
+        },
+        {
+          "id": "ctrl-misconf-7",
+          "description": "Alert on configuration drift from the approved baseline and auto-remediate or roll back high-risk changes within a defined SLA"
         }
       ],
       "isZoneThreat": true,
@@ -190,6 +237,16 @@
           "id": "T1567",
           "name": "Exfiltration Over Web Service",
           "tactic": "Exfiltration"
+        },
+        {
+          "id": "T1537",
+          "name": "Transfer Data to Cloud Account",
+          "tactic": "Exfiltration"
+        },
+        {
+          "id": "T1048",
+          "name": "Exfiltration Over Alternative Protocol",
+          "tactic": "Exfiltration"
         }
       ],
       "controls": [
@@ -199,7 +256,7 @@
         },
         {
           "id": "ctrl-exfil-2",
-          "description": "Encrypt sensitive data at rest and in transit"
+          "description": "Encrypt sensitive data with customer-managed keys and restrict decrypt to approved principals"
         },
         {
           "id": "ctrl-exfil-3",
@@ -212,10 +269,22 @@
         {
           "id": "ctrl-exfil-5",
           "description": "Classify and label sensitive data"
+        },
+        {
+          "id": "ctrl-exfil-6",
+          "description": "Restrict data stores to trusted identities and networks with data perimeter policies (VPC endpoint policies, VPC Service Controls, private endpoints)"
+        },
+        {
+          "id": "ctrl-exfil-7",
+          "description": "Block replication, snapshot sharing and data copy to accounts or tenants outside the organisation using organisation-level policies"
+        },
+        {
+          "id": "ctrl-exfil-8",
+          "description": "Log DNS queries from the zone and alert on tunnelling indicators such as high-entropy subdomains or unusual query volume"
         }
       ],
       "isZoneThreat": true,
-      "zoneContext": "Unauthorized data leaving the network zone through unmonitored egress paths, misconfigured NAT gateways, peering connections to untrusted networks, or tunneling through allowed protocols"
+      "zoneContext": "Data leaving the zone through unmonitored egress paths, misconfigured NAT gateways, peering to untrusted networks, DNS or protocol tunnelling, or provider service endpoints (such as storage gateway endpoints) that let a private workload write to attacker-owned accounts without crossing the egress firewall"
     },
     {
       "id": "privilege-escalation",
@@ -234,6 +303,11 @@
         {
           "id": "T1548",
           "name": "Abuse Elevation Control Mechanism",
+          "tactic": "Privilege Escalation"
+        },
+        {
+          "id": "T1098",
+          "name": "Account Manipulation",
           "tactic": "Privilege Escalation"
         }
       ],
@@ -257,6 +331,10 @@
         {
           "id": "ctrl-privesc-5",
           "description": "Disable unnecessary SUID/SGID binaries"
+        },
+        {
+          "id": "ctrl-privesc-6",
+          "description": "Restrict rights to create or change roles, policies and role bindings, including passing privileged roles to compute services"
         }
       ],
       "isPathwayThreat": true
@@ -301,9 +379,16 @@
         {
           "id": "ctrl-dos-5",
           "description": "Set up monitoring and alerting for traffic anomalies"
+        },
+        {
+          "id": "ctrl-dos-6",
+          "description": "Set quotas, concurrency limits and budget alerts on auto-scaling and pay-per-use services"
+        },
+        {
+          "id": "ctrl-dos-7",
+          "description": "Maintain a DoS response runbook with provider escalation contacts and pre-tested rules for shedding or blocking attack traffic"
         }
-      ],
-      "isPathwayThreat": true
+      ]
     },
     {
       "id": "malware-infection",
@@ -317,14 +402,24 @@
       ],
       "mitreTechniques": [
         {
-          "id": "T1204",
-          "name": "User Execution",
-          "tactic": "Execution"
-        },
-        {
           "id": "T1059",
           "name": "Command and Scripting Interpreter",
           "tactic": "Execution"
+        },
+        {
+          "id": "T1105",
+          "name": "Ingress Tool Transfer",
+          "tactic": "Command and Control"
+        },
+        {
+          "id": "T1486",
+          "name": "Data Encrypted for Impact",
+          "tactic": "Impact"
+        },
+        {
+          "id": "T1496.001",
+          "name": "Compute Hijacking",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -347,6 +442,14 @@
         {
           "id": "ctrl-malware-5",
           "description": "Implement email and web filtering"
+        },
+        {
+          "id": "ctrl-malware-6",
+          "description": "Restrict outbound internet access from servers to approved destinations"
+        },
+        {
+          "id": "ctrl-malware-7",
+          "description": "Keep immutable or offline backups and a tested isolate-and-rebuild procedure for infected hosts"
         }
       ]
     },
@@ -356,8 +459,9 @@
       "description": "Attacker supplies input that the application or platform executes as code, OS commands, scripts or templates, for example through eval, shell calls, server-side template rendering, CI/CD expression interpolation or unsafe deserialization",
       "severity": "critical",
       "stride": [
+        "elevation-of-privilege",
         "tampering",
-        "elevation-of-privilege"
+        "information-disclosure"
       ],
       "mitreTechniques": [
         {
@@ -378,7 +482,7 @@
         },
         {
           "id": "ctrl-inject-2",
-          "description": "Use parameterized queries and prepared statements"
+          "description": "Reject untrusted serialized objects, or deserialize only allow-listed types from integrity-checked sources"
         },
         {
           "id": "ctrl-inject-3",
@@ -386,11 +490,19 @@
         },
         {
           "id": "ctrl-inject-4",
-          "description": "Apply output encoding for different contexts"
+          "description": "Use logic-less or sandboxed template engines and never build templates or CI/CD expressions from untrusted input"
         },
         {
           "id": "ctrl-inject-5",
           "description": "Use Web Application Firewalls (WAF)"
+        },
+        {
+          "id": "ctrl-inject-6",
+          "description": "Run code-executing workloads and build jobs under least-privilege identities with no standing secrets and restricted egress"
+        },
+        {
+          "id": "ctrl-inject-7",
+          "description": "Alert on unexpected child processes, shell spawns and outbound connections from application, function and build runtimes"
         }
       ],
       "isPathwayThreat": true
@@ -398,7 +510,7 @@
     {
       "id": "query-injection",
       "name": "Query and Header Injection",
-      "description": "Attacker manipulates non-SQL query, filter or protocol syntax via unsanitized input, such as LDAP filters, graph queries (Gremlin, Cypher, SPARQL), search queries (Query DSL, Lucene, OData), time-series queries, XPath, or HTTP and email headers, to read or modify data or alter request handling",
+      "description": "Attacker manipulates LDAP filters, graph queries (Gremlin, Cypher, SPARQL), search queries (Query DSL, Lucene, OData), time-series queries, XPath, or HTTP and email headers via unsanitized input to read or modify data or alter request handling. SQL and NoSQL injection are separate threats",
       "severity": "high",
       "stride": [
         "tampering",
@@ -431,6 +543,10 @@
         {
           "id": "ctrl-query-5",
           "description": "Run application queries under least-privilege accounts and disable server-side scripting features that untrusted queries do not need"
+        },
+        {
+          "id": "ctrl-query-6",
+          "description": "Log rejected and malformed queries and alert on syntax errors or unusually broad result sets from application accounts"
         }
       ]
     },
@@ -447,7 +563,7 @@
         {
           "id": "T1078",
           "name": "Valid Accounts",
-          "tactic": "Persistence"
+          "tactic": "Privilege Escalation"
         }
       ],
       "controls": [
@@ -470,6 +586,14 @@
         {
           "id": "ctrl-excess-5",
           "description": "Automate permission rightsizing"
+        },
+        {
+          "id": "ctrl-excess-6",
+          "description": "Enforce guardrails, such as organisation policies or permission boundaries, that cap the privileges any identity can be granted"
+        },
+        {
+          "id": "ctrl-excess-7",
+          "description": "Alert on new grants of administrative, wildcard or cross-account permissions"
         }
       ]
     },
@@ -513,6 +637,10 @@
         {
           "id": "ctrl-sensitive-5",
           "description": "Implement data classification and handling policies"
+        },
+        {
+          "id": "ctrl-sensitive-6",
+          "description": "Run automated discovery scans for sensitive data and secrets in data stores, logs and code, and alert on new findings"
         }
       ]
     },
@@ -522,13 +650,24 @@
       "description": "Cloud storage buckets configured with overly permissive access policies",
       "severity": "high",
       "stride": [
-        "information-disclosure"
+        "information-disclosure",
+        "tampering"
       ],
       "mitreTechniques": [
         {
           "id": "T1530",
           "name": "Data from Cloud Storage",
           "tactic": "Collection"
+        },
+        {
+          "id": "T1619",
+          "name": "Cloud Storage Object Discovery",
+          "tactic": "Discovery"
+        },
+        {
+          "id": "T1565.001",
+          "name": "Stored Data Manipulation",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -550,7 +689,19 @@
         },
         {
           "id": "ctrl-bucket-5",
-          "description": "Encrypt all stored objects"
+          "description": "Encrypt bucket contents with customer-managed keys (e.g. S3 SSE-KMS) and restrict decrypt permissions"
+        },
+        {
+          "id": "ctrl-bucket-6",
+          "description": "Deny anonymous and cross-account write, ACL and policy changes on buckets except by designated deployment roles"
+        },
+        {
+          "id": "ctrl-bucket-7",
+          "description": "Remove DNS, CDN and code references before deleting a bucket"
+        },
+        {
+          "id": "ctrl-bucket-8",
+          "description": "Alert in near real time on changes to bucket policies, ACLs and public access settings"
         }
       ]
     },
@@ -561,13 +712,24 @@
       "severity": "critical",
       "stride": [
         "elevation-of-privilege",
-        "tampering"
+        "tampering",
+        "information-disclosure"
       ],
       "mitreTechniques": [
         {
           "id": "T1611",
           "name": "Escape to Host",
           "tactic": "Privilege Escalation"
+        },
+        {
+          "id": "T1068",
+          "name": "Exploitation for Privilege Escalation",
+          "tactic": "Privilege Escalation"
+        },
+        {
+          "id": "T1610",
+          "name": "Deploy Container",
+          "tactic": "Execution"
         }
       ],
       "controls": [
@@ -590,6 +752,18 @@
         {
           "id": "ctrl-container-5",
           "description": "Use container runtime security tools"
+        },
+        {
+          "id": "ctrl-container-6",
+          "description": "Apply seccomp RuntimeDefault and AppArmor or SELinux profiles, and drop all Linux capabilities the workload does not need"
+        },
+        {
+          "id": "ctrl-container-7",
+          "description": "Block hostPath mounts, host namespaces (hostPID, hostIPC, hostNetwork) and container runtime socket mounts via admission policy"
+        },
+        {
+          "id": "ctrl-container-8",
+          "description": "Patch container runtimes (runc, containerd) and node kernels promptly, and run untrusted workloads in sandboxed runtimes (gVisor, Kata)"
         }
       ],
       "isPathwayThreat": true
@@ -601,12 +775,33 @@
       "severity": "high",
       "stride": [
         "tampering",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "information-disclosure"
       ],
       "mitreTechniques": [
         {
           "id": "T1195",
           "name": "Supply Chain Compromise",
+          "tactic": "Initial Access"
+        },
+        {
+          "id": "T1195.001",
+          "name": "Compromise Software Dependencies and Development Tools",
+          "tactic": "Initial Access"
+        },
+        {
+          "id": "T1677",
+          "name": "Poisoned Pipeline Execution",
+          "tactic": "Execution"
+        },
+        {
+          "id": "T1204.003",
+          "name": "Malicious Image",
+          "tactic": "Execution"
+        },
+        {
+          "id": "T1195.002",
+          "name": "Compromise Software Supply Chain",
           "tactic": "Initial Access"
         }
       ],
@@ -630,6 +825,18 @@
         {
           "id": "ctrl-supply-5",
           "description": "Pin dependency versions and verify checksums"
+        },
+        {
+          "id": "ctrl-supply-6",
+          "description": "Pin third-party CI actions, plugins and base images to immutable digests or commit SHAs and review updates before adoption"
+        },
+        {
+          "id": "ctrl-supply-7",
+          "description": "Generate signed build provenance (SLSA, Sigstore) and block deployment of artifacts whose provenance cannot be verified"
+        },
+        {
+          "id": "ctrl-supply-8",
+          "description": "Rotate all CI/CD secrets and tokens exposed to a build when a dependency or build tool compromise is disclosed"
         }
       ],
       "isPathwayThreat": true
@@ -641,9 +848,20 @@
       "severity": "critical",
       "stride": [
         "spoofing",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "information-disclosure"
       ],
       "mitreTechniques": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "tactic": "Credential Access"
+        },
+        {
+          "id": "T1003",
+          "name": "OS Credential Dumping",
+          "tactic": "Credential Access"
+        },
         {
           "id": "T1555",
           "name": "Credentials from Password Stores",
@@ -652,6 +870,11 @@
         {
           "id": "T1528",
           "name": "Steal Application Access Token",
+          "tactic": "Credential Access"
+        },
+        {
+          "id": "T1555.006",
+          "name": "Cloud Secrets Management Stores",
           "tactic": "Credential Access"
         }
       ],
@@ -662,7 +885,7 @@
         },
         {
           "id": "ctrl-cred-2",
-          "description": "Rotate credentials regularly"
+          "description": "Rotate machine credentials and keys on a schedule; change user passwords on evidence of compromise rather than by forced expiry"
         },
         {
           "id": "ctrl-cred-3",
@@ -675,6 +898,14 @@
         {
           "id": "ctrl-cred-5",
           "description": "Implement credential-less authentication where possible"
+        },
+        {
+          "id": "ctrl-cred-6",
+          "description": "Scan code repositories, container images and CI/CD logs for exposed secrets, and block commits that contain them"
+        },
+        {
+          "id": "ctrl-cred-7",
+          "description": "Revoke and reissue exposed credentials immediately, and invalidate any sessions or tokens issued with them"
         }
       ],
       "isPathwayThreat": true
@@ -685,7 +916,8 @@
       "description": "Attacker disables or evades security logging to hide malicious activity",
       "severity": "low",
       "stride": [
-        "repudiation"
+        "repudiation",
+        "tampering"
       ],
       "mitreTechniques": [
         {
@@ -701,6 +933,11 @@
         {
           "id": "T1685.004",
           "name": "Disable or Modify Linux Audit System Log",
+          "tactic": "Defense Impairment"
+        },
+        {
+          "id": "T1685",
+          "name": "Disable or Modify Tools",
           "tactic": "Defense Impairment"
         }
       ],
@@ -728,10 +965,14 @@
         {
           "id": "ctrl-audit-6",
           "description": "Monitor for security service status changes (e.g., detector disabled, logging stopped)"
+        },
+        {
+          "id": "ctrl-audit-7",
+          "description": "Configure audit and flow logging at organisation level and deny disable or delete actions to all but break-glass roles"
         }
       ],
       "isZoneThreat": true,
-      "zoneContext": "Disabling or evading zone-level logging such as VPC Flow Logs, NSG flow logs, or network traffic analytics, preventing detection of malicious activity within or crossing the network zone"
+      "zoneContext": "Disabling or evading zone-level logging such as VPC Flow Logs, Azure VNet flow logs, or network traffic analytics, preventing detection of malicious activity within or crossing the network zone"
     },
     {
       "id": "network-misconfiguration",
@@ -747,6 +988,16 @@
           "id": "T1046",
           "name": "Network Service Discovery",
           "tactic": "Discovery"
+        },
+        {
+          "id": "T1133",
+          "name": "External Remote Services",
+          "tactic": "Initial Access"
+        },
+        {
+          "id": "T1686.001",
+          "name": "Cloud Firewall",
+          "tactic": "Defense Impairment"
         }
       ],
       "controls": [
@@ -769,6 +1020,14 @@
         {
           "id": "ctrl-net-5",
           "description": "Use infrastructure as code for network config"
+        },
+        {
+          "id": "ctrl-net-6",
+          "description": "Block internet ingress to administrative and data ports (SSH, RDP, database, cache) except through a bastion or VPN"
+        },
+        {
+          "id": "ctrl-net-7",
+          "description": "Alert on firewall or security group changes that open ingress from 0.0.0.0/0 or ::/0 and automatically revert unapproved changes"
         }
       ],
       "isZoneThreat": true,
@@ -780,7 +1039,8 @@
       "description": "Attacker moves between systems within the network after initial compromise",
       "severity": "high",
       "stride": [
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "spoofing"
       ],
       "mitreTechniques": [
         {
@@ -814,6 +1074,10 @@
         {
           "id": "ctrl-lateral-5",
           "description": "Disable unnecessary remote access protocols"
+        },
+        {
+          "id": "ctrl-lateral-6",
+          "description": "Use a unique local administrator password per host and restrict which hosts privileged accounts can sign in to"
         }
       ],
       "isPathwayThreat": true,
@@ -823,8 +1087,8 @@
     {
       "id": "broken-authentication",
       "name": "Broken Authentication",
-      "description": "Weak authentication mechanisms allow attackers to compromise user accounts",
-      "severity": "medium",
+      "description": "Flaws in how a service verifies identity, such as missing or misconfigured authorizers, weak token or session validation, or no brute-force protection, let attackers bypass authentication or sign in as other users",
+      "severity": "high",
       "stride": [
         "spoofing"
       ],
@@ -860,16 +1124,29 @@
         {
           "id": "ctrl-auth-5",
           "description": "Implement rate limiting on authentication endpoints"
+        },
+        {
+          "id": "ctrl-auth-6",
+          "description": "Validate token signature, algorithm, issuer, audience and expiry on every request, and reject unsigned tokens"
+        },
+        {
+          "id": "ctrl-auth-7",
+          "description": "Require authentication on every endpoint by default, and test for unauthenticated routes before each release"
+        },
+        {
+          "id": "ctrl-auth-8",
+          "description": "Log authentication failures and alert on spikes, password spraying and sign-ins from unusual locations"
         }
       ]
     },
     {
       "id": "message-tampering",
       "name": "Message Tampering",
-      "description": "Attacker modifies messages in transit between services",
+      "description": "Attacker publishes forged messages or alters queued messages, typically with compromised producer credentials or over-permissive broker policies, so consumers act on falsified data",
       "severity": "medium",
       "stride": [
         "tampering",
+        "spoofing",
         "repudiation"
       ],
       "mitreTechniques": [
@@ -877,6 +1154,11 @@
           "id": "T1557",
           "name": "Adversary-in-the-Middle",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1565.002",
+          "name": "Transmitted Data Manipulation",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -903,6 +1185,10 @@
         {
           "id": "ctrl-msg-6",
           "description": "Restrict producer access using IAM policies or broker-level authorization"
+        },
+        {
+          "id": "ctrl-msg-7",
+          "description": "Log publish and queue administration calls and alert on producers, subscriptions or access policy changes outside the expected set"
         }
       ]
     },
@@ -910,7 +1196,7 @@
       "id": "log-tampering",
       "name": "Log Tampering",
       "description": "Attacker modifies or deletes logs to hide malicious activity",
-      "severity": "low",
+      "severity": "medium",
       "stride": [
         "repudiation",
         "tampering"
@@ -952,14 +1238,18 @@
         {
           "id": "ctrl-log-5",
           "description": "Enable object lock or legal hold on log storage for compliance retention periods"
+        },
+        {
+          "id": "ctrl-log-6",
+          "description": "Alert on log deletion, retention-period reductions and sudden drops in log volume from any source"
         }
       ]
     },
     {
       "id": "backup-exposure",
       "name": "Backup Data Exposure",
-      "description": "Database backups stored insecurely expose sensitive data",
-      "severity": "medium",
+      "description": "Backups, snapshots or exports of databases and storage kept with weaker access, sharing or encryption settings than the source, exposing its full contents",
+      "severity": "high",
       "stride": [
         "information-disclosure"
       ],
@@ -968,6 +1258,11 @@
           "id": "T1530",
           "name": "Data from Cloud Storage",
           "tactic": "Collection"
+        },
+        {
+          "id": "T1537",
+          "name": "Transfer Data to Cloud Account",
+          "tactic": "Exfiltration"
         }
       ],
       "controls": [
@@ -986,6 +1281,14 @@
         {
           "id": "ctrl-backup-4",
           "description": "Regularly test backup restoration procedures"
+        },
+        {
+          "id": "ctrl-backup-5",
+          "description": "Block public and external-account sharing of snapshots and backups, and alert on any share, copy or export of them"
+        },
+        {
+          "id": "ctrl-backup-6",
+          "description": "Inventory backups, snapshots and exports, including manual dumps, and delete those past their retention period"
         }
       ]
     },
@@ -993,10 +1296,11 @@
       "id": "unpatched-vulnerabilities",
       "name": "Unpatched Vulnerabilities",
       "description": "Known security vulnerabilities remain unpatched, enabling exploitation",
-      "severity": "medium",
+      "severity": "high",
       "stride": [
-        "tampering",
         "elevation-of-privilege",
+        "tampering",
+        "information-disclosure",
         "denial-of-service"
       ],
       "mitreTechniques": [
@@ -1009,6 +1313,11 @@
           "id": "T1068",
           "name": "Exploitation for Privilege Escalation",
           "tactic": "Privilege Escalation"
+        },
+        {
+          "id": "T1210",
+          "name": "Exploitation of Remote Services",
+          "tactic": "Lateral Movement"
         }
       ],
       "controls": [
@@ -1031,8 +1340,17 @@
         {
           "id": "ctrl-patch-5",
           "description": "Implement compensating controls for delayed patches"
+        },
+        {
+          "id": "ctrl-patch-6",
+          "description": "Prioritise remediation of vulnerabilities in the CISA KEV catalogue or with high EPSS scores ahead of CVSS-only ordering"
+        },
+        {
+          "id": "ctrl-patch-7",
+          "description": "Maintain an inventory of deployed software versions and subscribe to vendor security advisories for each product"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "connection-mitm",
@@ -1054,6 +1372,11 @@
           "id": "T1040",
           "name": "Network Sniffing",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1565.002",
+          "name": "Transmitted Data Manipulation",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -1072,6 +1395,14 @@
         {
           "id": "ctrl-mitm-4",
           "description": "Implement network segmentation"
+        },
+        {
+          "id": "ctrl-mitm-5",
+          "description": "Validate server certificates and hostnames on every client; never disable verification or trust self-signed certificates in production"
+        },
+        {
+          "id": "ctrl-mitm-6",
+          "description": "Disable plaintext listeners and legacy TLS versions, and set HSTS on HTTP endpoints"
         }
       ],
       "isConnectionThreat": true
@@ -1112,6 +1443,14 @@
         {
           "id": "ctrl-transit-4",
           "description": "Use secure protocols (HTTPS, SFTP, etc.)"
+        },
+        {
+          "id": "ctrl-transit-5",
+          "description": "Re-encrypt traffic from TLS-terminating load balancers, CDNs and gateways to their backends"
+        },
+        {
+          "id": "ctrl-transit-6",
+          "description": "Keep secrets, tokens and personal data out of URLs and query strings"
         }
       ],
       "isConnectionThreat": true
@@ -1130,6 +1469,11 @@
           "id": "T1557",
           "name": "Adversary-in-the-Middle",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1550",
+          "name": "Use Alternate Authentication Material",
+          "tactic": "Lateral Movement"
         }
       ],
       "controls": [
@@ -1148,6 +1492,14 @@
         {
           "id": "ctrl-replay-4",
           "description": "Use TLS to prevent packet capture"
+        },
+        {
+          "id": "ctrl-replay-5",
+          "description": "Bind access tokens to the client with mTLS (RFC 8705) or DPoP (RFC 9449)"
+        },
+        {
+          "id": "ctrl-replay-6",
+          "description": "Require idempotency keys on state-changing requests and reject duplicates server-side"
         }
       ],
       "isConnectionThreat": true
@@ -1155,17 +1507,18 @@
     {
       "id": "connection-injection",
       "name": "Protocol Injection",
-      "description": "Attacker injects malicious data into the communication channel between services",
+      "description": "Attacker sends requests that a proxy and the service behind it parse differently, such as HTTP request smuggling, desync or protocol confusion, to slip requests past upstream controls, poison responses or capture other users' requests",
       "severity": "medium",
       "stride": [
         "tampering",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "information-disclosure"
       ],
       "mitreTechniques": [
         {
-          "id": "T1557",
-          "name": "Adversary-in-the-Middle",
-          "tactic": "Credential Access"
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
         }
       ],
       "controls": [
@@ -1184,6 +1537,14 @@
         {
           "id": "ctrl-proto-4",
           "description": "Use encrypted and authenticated protocols"
+        },
+        {
+          "id": "ctrl-proto-5",
+          "description": "Reject ambiguous requests (both Content-Length and Transfer-Encoding, bare CR or LF, duplicate Host) at every proxy hop"
+        },
+        {
+          "id": "ctrl-proto-6",
+          "description": "Use HTTP/2 end to end between proxies and back-ends instead of downgrading to HTTP/1.1, and disable back-end connection reuse where unsupported"
         }
       ],
       "isConnectionThreat": true
@@ -1219,6 +1580,10 @@
         {
           "id": "ctrl-connflood-4",
           "description": "Implement circuit breakers for resilience"
+        },
+        {
+          "id": "ctrl-connflood-5",
+          "description": "Monitor connection counts, latency and error rates on each service link and alert on saturation or sudden spikes"
         }
       ],
       "isConnectionThreat": true
@@ -1268,6 +1633,18 @@
         {
           "id": "ctrl-prompt-7",
           "description": "Isolate user-provided input from system instructions using structured API formats"
+        },
+        {
+          "id": "ctrl-prompt-8",
+          "description": "Scope the model's data access and tool permissions to the requesting user"
+        },
+        {
+          "id": "ctrl-prompt-9",
+          "description": "Treat retrieved documents, web pages, emails and tool output as untrusted data and keep them out of the instruction channel"
+        },
+        {
+          "id": "ctrl-prompt-10",
+          "description": "Red-team the application with direct and indirect injection payloads before release and after model or prompt changes"
         }
       ]
     },
@@ -1304,8 +1681,13 @@
         {
           "id": "ctrl-output-4",
           "description": "Constrain responses to strict schemas and validate them server-side before acting on them"
+        },
+        {
+          "id": "ctrl-output-5",
+          "description": "Run model-generated code only in an isolated sandbox with no credentials, no network egress and strict resource limits"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "ai-training-data-poisoning",
@@ -1347,13 +1729,17 @@
         {
           "id": "ctrl-poison-6",
           "description": "Verify training data integrity using checksums or cryptographic hashes before training runs"
+        },
+        {
+          "id": "ctrl-poison-7",
+          "description": "Version datasets and models, and roll back poisoned models to a known-good snapshot"
         }
       ]
     },
     {
       "id": "ai-model-extraction",
       "name": "Model Extraction",
-      "description": "Attacker queries AI model systematically to reconstruct or steal proprietary model weights and architecture",
+      "description": "Attacker steals proprietary model weights from storage, registries or hosts, or queries a model systematically to replicate its behaviour or extract knowledge encoded in fine-tuning",
       "severity": "medium",
       "stride": [
         "information-disclosure"
@@ -1362,6 +1748,11 @@
         {
           "id": "T1530",
           "name": "Data from Cloud Storage",
+          "tactic": "Collection"
+        },
+        {
+          "id": "T1005",
+          "name": "Data from Local System",
           "tactic": "Collection"
         }
       ],
@@ -1381,6 +1772,14 @@
         {
           "id": "ctrl-extract-4",
           "description": "Restrict API access with strong authentication"
+        },
+        {
+          "id": "ctrl-extract-5",
+          "description": "Restrict and audit access to model weights in storage and registries, and encrypt them with customer-managed keys"
+        },
+        {
+          "id": "ctrl-extract-6",
+          "description": "Withhold log-probabilities and confidence scores from externally exposed endpoints unless a client needs them"
         }
       ]
     },
@@ -1403,6 +1802,11 @@
           "id": "T1046",
           "name": "Network Service Discovery",
           "tactic": "Discovery"
+        },
+        {
+          "id": "T1552.005",
+          "name": "Cloud Instance Metadata API",
+          "tactic": "Credential Access"
         }
       ],
       "controls": [
@@ -1425,6 +1829,18 @@
         {
           "id": "ctrl-ssrf-5",
           "description": "Disable unnecessary URL schemes (file://, gopher://, etc.)"
+        },
+        {
+          "id": "ctrl-ssrf-6",
+          "description": "Require session-token or header-protected access to instance metadata (e.g. IMDSv2 with a hop limit of 1)"
+        },
+        {
+          "id": "ctrl-ssrf-7",
+          "description": "Resolve the destination once, validate the resulting IP and connect to it, and re-validate on redirects to defeat DNS rebinding"
+        },
+        {
+          "id": "ctrl-ssrf-8",
+          "description": "Log outbound requests from application servers and alert on connections to internal ranges, link-local or metadata addresses"
         }
       ],
       "isPathwayThreat": true
@@ -1436,13 +1852,19 @@
       "severity": "medium",
       "stride": [
         "tampering",
-        "information-disclosure"
+        "information-disclosure",
+        "denial-of-service"
       ],
       "mitreTechniques": [
         {
           "id": "T1557",
           "name": "Adversary-in-the-Middle",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1565.001",
+          "name": "Stored Data Manipulation",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -1461,6 +1883,18 @@
         {
           "id": "ctrl-cache-4",
           "description": "Monitor cache hit rates for anomalies"
+        },
+        {
+          "id": "ctrl-cache-5",
+          "description": "Include every request input that affects the response in the cache key, or strip unkeyed headers such as X-Forwarded-Host at the edge"
+        },
+        {
+          "id": "ctrl-cache-6",
+          "description": "Never cache responses to authenticated requests or responses that set cookies; send Cache-Control: private or no-store on personalised content"
+        },
+        {
+          "id": "ctrl-cache-7",
+          "description": "Maintain a tested runbook to purge or invalidate poisoned entries across every cache node and edge location"
         }
       ]
     },
@@ -1476,9 +1910,9 @@
       ],
       "mitreTechniques": [
         {
-          "id": "T1059",
-          "name": "Command and Scripting Interpreter",
-          "tactic": "Execution"
+          "id": "T1565.002",
+          "name": "Transmitted Data Manipulation",
+          "tactic": "Impact"
         }
       ],
       "controls": [
@@ -1497,6 +1931,10 @@
         {
           "id": "ctrl-event-4",
           "description": "Monitor event patterns for anomalies"
+        },
+        {
+          "id": "ctrl-event-5",
+          "description": "Treat event payloads as untrusted in every consumer; validate fields before use and never pass them to shell, eval or query strings"
         }
       ]
     },
@@ -1553,7 +1991,7 @@
       "id": "workflow-manipulation",
       "name": "Workflow Manipulation",
       "description": "Attacker exploits workflow orchestration to bypass security controls or execute unauthorized steps",
-      "severity": "medium",
+      "severity": "high",
       "stride": [
         "tampering",
         "elevation-of-privilege"
@@ -1563,6 +2001,11 @@
           "id": "T1078",
           "name": "Valid Accounts",
           "tactic": "Persistence"
+        },
+        {
+          "id": "T1648",
+          "name": "Serverless Execution",
+          "tactic": "Execution"
         }
       ],
       "controls": [
@@ -1581,8 +2024,17 @@
         {
           "id": "ctrl-workflow-4",
           "description": "Use workflow versioning and change management"
+        },
+        {
+          "id": "ctrl-workflow-5",
+          "description": "Restrict who can create or edit workflow definitions and deploy changes only through reviewed CI/CD"
+        },
+        {
+          "id": "ctrl-workflow-6",
+          "description": "Require authentication on webhook, HTTP and API triggers"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "token-theft",
@@ -1603,6 +2055,11 @@
           "id": "T1539",
           "name": "Steal Web Session Cookie",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1550.004",
+          "name": "Web Session Cookie",
+          "tactic": "Lateral Movement"
         }
       ],
       "controls": [
@@ -1625,14 +2082,19 @@
         {
           "id": "ctrl-token-5",
           "description": "Monitor for token reuse from multiple locations"
+        },
+        {
+          "id": "ctrl-token-6",
+          "description": "Rotate refresh tokens on every use and revoke the whole token family when reuse of an old refresh token is detected"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "account-takeover",
       "name": "Account Takeover",
       "description": "Attacker gains control of user accounts through credential stuffing, phishing, or session hijacking",
-      "severity": "critical",
+      "severity": "high",
       "stride": [
         "spoofing",
         "elevation-of-privilege"
@@ -1646,6 +2108,16 @@
         {
           "id": "T1110",
           "name": "Brute Force",
+          "tactic": "Credential Access"
+        },
+        {
+          "id": "T1566",
+          "name": "Phishing",
+          "tactic": "Initial Access"
+        },
+        {
+          "id": "T1621",
+          "name": "Multi-Factor Authentication Request Generation",
           "tactic": "Credential Access"
         }
       ],
@@ -1669,8 +2141,21 @@
         {
           "id": "ctrl-takeover-5",
           "description": "Check credentials against known breach databases"
+        },
+        {
+          "id": "ctrl-takeover-6",
+          "description": "Require phishing-resistant MFA (FIDO2/WebAuthn passkeys) for administrators and other high-value accounts"
+        },
+        {
+          "id": "ctrl-takeover-7",
+          "description": "Verify identity out of band before help-desk password or MFA resets, and notify the user of any recovery change"
+        },
+        {
+          "id": "ctrl-takeover-8",
+          "description": "After a confirmed takeover, revoke active sessions and remove attacker-added MFA devices, mail rules and app grants"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "oauth-token-abuse",
@@ -1692,6 +2177,11 @@
           "id": "T1550.001",
           "name": "Application Access Token",
           "tactic": "Lateral Movement"
+        },
+        {
+          "id": "T1671",
+          "name": "Cloud Application Integration",
+          "tactic": "Persistence"
         }
       ],
       "controls": [
@@ -1714,6 +2204,10 @@
         {
           "id": "ctrl-oauth-5",
           "description": "Use short-lived tokens with automatic refresh"
+        },
+        {
+          "id": "ctrl-oauth-6",
+          "description": "Revoke the app grant and its refresh tokens, and disable the app registration, when token abuse is detected"
         }
       ],
       "isPathwayThreat": true
@@ -1735,9 +2229,9 @@
           "tactic": "Initial Access"
         },
         {
-          "id": "T1195",
-          "name": "Supply Chain Compromise",
-          "tactic": "Initial Access"
+          "id": "T1550.001",
+          "name": "Application Access Token",
+          "tactic": "Lateral Movement"
         }
       ],
       "controls": [
@@ -1760,22 +2254,34 @@
         {
           "id": "ctrl-integration-5",
           "description": "Regularly review and remove unused integrations"
+        },
+        {
+          "id": "ctrl-integration-6",
+          "description": "Grant integrations least-privilege OAuth scopes and dedicated integration users rather than administrator accounts"
+        },
+        {
+          "id": "ctrl-integration-7",
+          "description": "Restrict integration tokens to vendor IP ranges where supported and alert on bulk data export by any integration"
+        },
+        {
+          "id": "ctrl-integration-8",
+          "description": "Revoke and rotate integration tokens immediately when a vendor discloses a breach, using a pre-written runbook"
         }
       ]
     },
     {
       "id": "saas-data-leakage",
       "name": "SaaS Data Leakage",
-      "description": "Sensitive data unintentionally shared externally through SaaS collaboration features such as file sharing, public links, or guest access",
+      "description": "Sensitive data leaves the organisation's control through SaaS sharing features (public links, external or guest access, shared chats) or by being submitted to SaaS and AI tools outside approved use",
       "severity": "medium",
       "stride": [
         "information-disclosure"
       ],
       "mitreTechniques": [
         {
-          "id": "T1567",
-          "name": "Exfiltration Over Web Service",
-          "tactic": "Exfiltration"
+          "id": "T1213",
+          "name": "Data from Information Repositories",
+          "tactic": "Collection"
         },
         {
           "id": "T1530",
@@ -1803,6 +2309,10 @@
         {
           "id": "ctrl-saas-leak-5",
           "description": "Implement data classification and labeling"
+        },
+        {
+          "id": "ctrl-saas-leak-6",
+          "description": "Set expiry on external sharing links and guest accounts, and review and revoke stale external access on a fixed schedule"
         }
       ]
     },
@@ -1822,9 +2332,9 @@
           "tactic": "Exfiltration"
         },
         {
-          "id": "T1199",
-          "name": "Trusted Relationship",
-          "tactic": "Initial Access"
+          "id": "T1567.002",
+          "name": "Exfiltration to Cloud Storage",
+          "tactic": "Exfiltration"
         }
       ],
       "controls": [
@@ -1847,6 +2357,10 @@
         {
           "id": "ctrl-shadow-5",
           "description": "Conduct regular shadow IT discovery and remediation"
+        },
+        {
+          "id": "ctrl-shadow-6",
+          "description": "Restrict user consent to third-party OAuth apps to admin-approved or verified publishers"
         }
       ]
     },
@@ -1856,8 +2370,8 @@
       "description": "Attacker structures, encodes, or obfuscates sensitive data to evade automated detection and classification systems",
       "severity": "medium",
       "stride": [
-        "tampering",
-        "information-disclosure"
+        "information-disclosure",
+        "tampering"
       ],
       "mitreTechniques": [
         {
@@ -1869,6 +2383,11 @@
           "id": "T1567",
           "name": "Exfiltration Over Web Service",
           "tactic": "Exfiltration"
+        },
+        {
+          "id": "T1560",
+          "name": "Archive Collected Data",
+          "tactic": "Collection"
         }
       ],
       "controls": [
@@ -1891,6 +2410,10 @@
         {
           "id": "ctrl-classify-5",
           "description": "Implement human review for edge cases and anomalies"
+        },
+        {
+          "id": "ctrl-classify-6",
+          "description": "Report objects the classifier skipped (unsupported format, encryption, size or sampling limits) and treat them as unclassified"
         }
       ]
     },
@@ -1914,6 +2437,11 @@
           "id": "T1078",
           "name": "Valid Accounts",
           "tactic": "Persistence"
+        },
+        {
+          "id": "T1537",
+          "name": "Transfer Data to Cloud Account",
+          "tactic": "Exfiltration"
         }
       ],
       "controls": [
@@ -1936,6 +2464,10 @@
         {
           "id": "ctrl-etl-5",
           "description": "Use separate credentials for pipeline execution with least privilege"
+        },
+        {
+          "id": "ctrl-etl-6",
+          "description": "Restrict pipeline network egress and writable destinations to approved data stores"
         }
       ],
       "isPathwayThreat": true
@@ -1943,13 +2475,23 @@
     {
       "id": "remote-command-execution",
       "name": "Unauthorized Remote Command Execution",
-      "description": "Attacker leverages management tools to execute unauthorized commands on target systems",
+      "description": "Attacker runs unauthorized commands or code on target systems by abusing remote execution features such as management agents, run-command, job submission APIs or agent tools",
       "severity": "critical",
       "stride": [
         "tampering",
         "elevation-of-privilege"
       ],
       "mitreTechniques": [
+        {
+          "id": "T1651",
+          "name": "Cloud Administration Command",
+          "tactic": "Execution"
+        },
+        {
+          "id": "T1072",
+          "name": "Software Deployment Tools",
+          "tactic": "Execution"
+        },
         {
           "id": "T1059",
           "name": "Command and Scripting Interpreter",
@@ -1981,6 +2523,14 @@
         {
           "id": "ctrl-remotecmd-5",
           "description": "Restrict command execution to approved runbooks"
+        },
+        {
+          "id": "ctrl-remotecmd-6",
+          "description": "Alert on command execution outside approved runbooks, change windows or expected operator identities"
+        },
+        {
+          "id": "ctrl-remotecmd-7",
+          "description": "Scope execution rights by target tag or group"
         }
       ],
       "isPathwayThreat": true
@@ -2004,6 +2554,16 @@
           "id": "T1053",
           "name": "Scheduled Task/Job",
           "tactic": "Persistence"
+        },
+        {
+          "id": "T1496.001",
+          "name": "Compute Hijacking",
+          "tactic": "Impact"
+        },
+        {
+          "id": "T1525",
+          "name": "Implant Internal Image",
+          "tactic": "Persistence"
         }
       ],
       "controls": [
@@ -2026,6 +2586,10 @@
         {
           "id": "ctrl-batch-5",
           "description": "Use separate IAM roles with least privilege for each job type"
+        },
+        {
+          "id": "ctrl-batch-6",
+          "description": "Alert on job compute usage, runtimes or outbound connections that suggest cryptomining or other resource hijacking"
         }
       ],
       "isPathwayThreat": true
@@ -2047,9 +2611,14 @@
           "tactic": "Initial Access"
         },
         {
-          "id": "T1499",
-          "name": "Endpoint Denial of Service",
+          "id": "T1499.003",
+          "name": "Application Exhaustion Flood",
           "tactic": "Impact"
+        },
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "tactic": "Credential Access"
         }
       ],
       "controls": [
@@ -2072,6 +2641,18 @@
         {
           "id": "ctrl-graphql-5",
           "description": "Validate and sanitize all query inputs"
+        },
+        {
+          "id": "ctrl-graphql-6",
+          "description": "Accept only persisted or allow-listed operations from first-party clients"
+        },
+        {
+          "id": "ctrl-graphql-7",
+          "description": "Limit aliases and batched operations per request, especially on login, OTP and other sensitive mutations"
+        },
+        {
+          "id": "ctrl-graphql-8",
+          "description": "Log operation names, cost and authorization failures per resolver and alert on introspection or field-suggestion probing"
         }
       ]
     },
@@ -2086,8 +2667,8 @@
       ],
       "mitreTechniques": [
         {
-          "id": "T1565",
-          "name": "Data Manipulation",
+          "id": "T1565.001",
+          "name": "Stored Data Manipulation",
           "tactic": "Impact"
         },
         {
@@ -2116,6 +2697,10 @@
         {
           "id": "ctrl-search-5",
           "description": "Use separate indexes for different sensitivity levels"
+        },
+        {
+          "id": "ctrl-search-6",
+          "description": "Keep versioned index snapshots or a re-indexable source of truth"
         }
       ]
     },
@@ -2139,6 +2724,16 @@
           "id": "T1021",
           "name": "Remote Services",
           "tactic": "Lateral Movement"
+        },
+        {
+          "id": "T1556.007",
+          "name": "Hybrid Identity",
+          "tactic": "Credential Access"
+        },
+        {
+          "id": "T1040",
+          "name": "Network Sniffing",
+          "tactic": "Credential Access"
         }
       ],
       "controls": [
@@ -2161,6 +2756,14 @@
         {
           "id": "ctrl-hybrid-5",
           "description": "Use private endpoints and avoid public internet routing"
+        },
+        {
+          "id": "ctrl-hybrid-6",
+          "description": "Filter BGP route advertisements on hybrid links so only approved prefixes are exchanged in each direction"
+        },
+        {
+          "id": "ctrl-hybrid-7",
+          "description": "Treat hybrid identity sync and federation servers (e.g. Entra Connect, AD FS) as tier-0 assets and alert on their configuration changes"
         }
       ],
       "isPathwayThreat": true
@@ -2206,16 +2809,21 @@
         {
           "id": "ctrl-datalake-5",
           "description": "Regularly audit and review data access patterns"
+        },
+        {
+          "id": "ctrl-datalake-6",
+          "description": "Deny direct access to governed data in the underlying storage"
         }
       ]
     },
     {
       "id": "kubernetes-secrets-exposure",
       "name": "Kubernetes Secrets Exposure",
-      "description": "Attacker accesses Kubernetes secrets stored in etcd, which may contain credentials, API keys, TLS certificates, and other sensitive data often stored without encryption-at-rest by default",
+      "description": "Attacker reads Kubernetes Secrets through over-broad RBAC (get/list/watch on Secrets, or rights to create pods that mount them), a compromised workload, or direct etcd access, obtaining credentials, API keys and TLS keys that are only base64-encoded",
       "severity": "critical",
       "stride": [
-        "information-disclosure"
+        "information-disclosure",
+        "elevation-of-privilege"
       ],
       "mitreTechniques": [
         {
@@ -2224,8 +2832,8 @@
           "tactic": "Credential Access"
         },
         {
-          "id": "T1552",
-          "name": "Unsecured Credentials",
+          "id": "T1552.001",
+          "name": "Credentials In Files",
           "tactic": "Credential Access"
         }
       ],
@@ -2249,6 +2857,10 @@
         {
           "id": "ctrl-k8ssecret-5",
           "description": "Use sealed-secrets or external-secrets operator for GitOps workflows"
+        },
+        {
+          "id": "ctrl-k8ssecret-6",
+          "description": "Restrict who can create or update pods and workloads in namespaces holding sensitive Secrets"
         }
       ],
       "isPathwayThreat": true
@@ -2260,13 +2872,24 @@
       "severity": "critical",
       "stride": [
         "tampering",
-        "elevation-of-privilege"
+        "elevation-of-privilege",
+        "repudiation"
       ],
       "mitreTechniques": [
         {
-          "id": "T1565",
-          "name": "Data Manipulation",
+          "id": "T1565.001",
+          "name": "Stored Data Manipulation",
           "tactic": "Impact"
+        },
+        {
+          "id": "T1098.006",
+          "name": "Additional Container Cluster Roles",
+          "tactic": "Persistence"
+        },
+        {
+          "id": "T1610",
+          "name": "Deploy Container",
+          "tactic": "Execution"
         },
         {
           "id": "T1078",
@@ -2289,11 +2912,19 @@
         },
         {
           "id": "ctrl-clusterstate-4",
-          "description": "Enable etcd audit logging and monitor for direct API access"
+          "description": "Monitor etcd client connections and alert on any client other than the Kubernetes API servers"
         },
         {
           "id": "ctrl-clusterstate-5",
           "description": "Implement network policies to isolate etcd from pod network"
+        },
+        {
+          "id": "ctrl-clusterstate-6",
+          "description": "Use a dedicated CA for etcd, separate from the cluster CA, and restrict read access to etcd client keys on control-plane nodes"
+        },
+        {
+          "id": "ctrl-clusterstate-7",
+          "description": "Take encrypted, regularly restore-tested etcd snapshots"
         }
       ],
       "isPathwayThreat": true
@@ -2304,7 +2935,8 @@
       "description": "Attacker accesses etcd snapshots or backups which contain complete cluster state including all secrets, ConfigMaps, service account tokens, and RBAC configurations",
       "severity": "critical",
       "stride": [
-        "information-disclosure"
+        "information-disclosure",
+        "elevation-of-privilege"
       ],
       "mitreTechniques": [
         {
@@ -2313,9 +2945,14 @@
           "tactic": "Collection"
         },
         {
-          "id": "T1552",
-          "name": "Unsecured Credentials",
+          "id": "T1552.001",
+          "name": "Credentials In Files",
           "tactic": "Credential Access"
+        },
+        {
+          "id": "T1005",
+          "name": "Data from Local System",
+          "tactic": "Collection"
         }
       ],
       "controls": [
@@ -2338,17 +2975,22 @@
         {
           "id": "ctrl-etcdsnap-5",
           "description": "Monitor access to snapshot storage locations"
+        },
+        {
+          "id": "ctrl-etcdsnap-6",
+          "description": "Encrypt Secrets at rest in etcd with a KMS provider whose key is held outside the cluster"
         }
-      ]
+      ],
+      "isPathwayThreat": true
     },
     {
       "id": "consensus-disruption",
       "name": "Distributed Consensus Disruption",
-      "description": "Attacker disrupts the Raft consensus protocol by manipulating leader election, injecting rogue members, or causing network partitions that lead to split-brain scenarios or data inconsistency",
+      "description": "Attacker disrupts Raft consensus (e.g. etcd) by forcing repeated leader elections, adding or removing members with stolen peer credentials, or partitioning members to break quorum, causing control-plane outage or data loss if recovery forces a new cluster",
       "severity": "medium",
       "stride": [
-        "tampering",
-        "denial-of-service"
+        "denial-of-service",
+        "tampering"
       ],
       "mitreTechniques": [
         {
@@ -2382,6 +3024,10 @@
         {
           "id": "ctrl-consensus-5",
           "description": "Implement network segmentation for etcd peer traffic"
+        },
+        {
+          "id": "ctrl-consensus-6",
+          "description": "Restrict etcd member add and remove operations to break-glass credentials and alert on any membership change"
         }
       ]
     },
@@ -2402,9 +3048,9 @@
           "tactic": "Execution"
         },
         {
-          "id": "T1199",
-          "name": "Trusted Relationship",
-          "tactic": "Initial Access"
+          "id": "T1567",
+          "name": "Exfiltration Over Web Service",
+          "tactic": "Exfiltration"
         }
       ],
       "controls": [
@@ -2427,6 +3073,14 @@
         {
           "id": "ctrl-toolabuse-5",
           "description": "Implement anomaly detection on tool invocation sequences and frequencies"
+        },
+        {
+          "id": "ctrl-toolabuse-6",
+          "description": "Restrict agent and tool network egress to an allowlist"
+        },
+        {
+          "id": "ctrl-toolabuse-7",
+          "description": "Give tools short-lived, user-delegated credentials instead of a shared service identity with standing access"
         }
       ],
       "isPathwayThreat": true

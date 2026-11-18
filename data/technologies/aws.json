@@ -25,13 +25,14 @@
         "credential-theft": "Instance Metadata Service (IMDS) credential theft via http://169.254.169.254, IAM role assumption from compromised instance",
         "lateral-movement": "VPC-based pivoting to other instances, SSM Session Manager abuse, security group misconfigurations enabling internal access",
         "unpatched-vulnerabilities": "OS-level CVEs, unpatched AMIs, outdated packages and kernel vulnerabilities",
-        "ssrf-attack": "SSRF to EC2 Instance Metadata Service (IMDSv1: http://169.254.169.254/latest/meta-data/) enabling IAM role credential theft, internal VPC service discovery via SSRF"
+        "ssrf-attack": "SSRF to EC2 Instance Metadata Service (IMDSv1: http://169.254.169.254/latest/meta-data/) enabling IAM role credential theft, internal VPC service discovery via SSRF",
+        "privilege-escalation": "iam:PassRole with ec2:RunInstances to launch an instance with a more privileged role, stopping an instance and replacing its user data (ModifyInstanceAttribute) with a cloud-init payload set to run on every boot so it executes as root on start, local kernel exploits"
       },
       "threatMitigations": {
         "credential-theft": [
           "Enforce IMDSv2 to block SSRF-based credential theft from the metadata service",
           "Use IAM roles with minimal permissions instead of long-lived access keys",
-          "Rotate IAM role session credentials with short TTLs"
+          "Use an SCP comparing aws:Ec2InstanceSourceVpc to aws:SourceVpc to block off-instance use of role credentials, and alert on GuardDuty InstanceCredentialExfiltration"
         ],
         "misconfiguration": [
           "Use AWS Config rules to detect non-compliant EC2 configurations",
@@ -49,7 +50,8 @@
           "Deploy Amazon GuardDuty with Malware Protection for automated EBS volume scanning",
           "Enable GuardDuty Runtime Monitoring for EC2 to detect cryptominers, reverse shells and malicious process execution",
           "Restrict outbound security group rules to limit C2 communication channels",
-          "Enable AWS Systems Manager Patch Manager for automated OS and application patching"
+          "Enable AWS Systems Manager Patch Manager for automated OS and application patching",
+          "Protect EBS snapshots and AMIs with AWS Backup Vault Lock or EBS snapshot lock, and keep a tested isolate-and-rebuild runbook for infected instances"
         ],
         "data-exfiltration": [
           "Enable VPC Flow Logs and monitor for unusual outbound data transfer patterns",
@@ -100,25 +102,30 @@
         "misconfiguration",
         "excessive-permissions",
         "sensitive-data-exposure",
-        "dos-attack"
+        "dos-attack",
+        "ssrf-attack",
+        "supply-chain-attack"
       ],
       "threatContext": {
         "injection-attack": "Event data injection via API Gateway, S3 triggers, or SQS messages; command injection through unsanitized event parameters passed to shell commands",
         "misconfiguration": "Overly permissive function URLs without authentication, public Lambda layers with sensitive code, VPC configuration exposing internal resources, excessive timeout/memory enabling cryptomining",
         "excessive-permissions": "Wildcard IAM execution roles (lambda:*, s3:*, dynamodb:*), unused permissions accumulated over time, overly broad resource ARNs in policies",
         "sensitive-data-exposure": "Secrets hardcoded in environment variables, sensitive data in CloudWatch logs, /tmp directory persistence between warm invocations leaking data",
-        "dos-attack": "Reserved concurrency exhaustion, recursive invocation loops (S3->Lambda->S3), cold start amplification attacks, timeout exploitation for resource exhaustion"
+        "dos-attack": "Reserved concurrency exhaustion, recursive invocation loops (S3->Lambda->S3), cold start amplification attacks, timeout exploitation for resource exhaustion",
+        "ssrf-attack": "SSRF through a client that accepts file:// reads /proc/self/environ, which holds the execution role's AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN; there is no IMDS. VPC-attached functions can also be steered at internal services and VPC endpoints",
+        "supply-chain-attack": "Malicious or typosquatted packages bundled into deployment .zip files, compromised or third-party public layers, tampered container images in ECR, CI/CD credentials with lambda:UpdateFunctionCode pushing unsigned code"
       },
       "threatMitigations": {
         "injection-attack": [
           "Validate and sanitize all event input parameters before processing",
           "Use parameterized queries for any database operations",
-          "Avoid passing event data to shell commands or eval constructs"
+          "Avoid passing event data to shell commands or eval constructs",
+          "Enable GuardDuty Lambda Protection and restrict function egress with VPC attachment and restrictive security groups"
         ],
         "misconfiguration": [
           "Require IAM authentication on function URLs",
           "Set appropriate memory, timeout, and reserved concurrency limits",
-          "Use AWS Lambda Powertools for structured configuration management",
+          "Deny lambda:CreateFunctionUrlConfig and UpdateFunctionUrlConfig via SCP unless lambda:FunctionUrlAuthType is AWS_IAM",
           "Restrict VPC security groups to minimum required network access"
         ],
         "excessive-permissions": [
@@ -136,7 +143,18 @@
           "Set reserved concurrency limits per function to prevent account-wide exhaustion",
           "Keep Lambda recursive loop detection enabled to stop SQS/SNS/S3 invocation loops",
           "Front HTTP-invoked functions with API Gateway throttling and AWS WAF rate-based rules",
-          "Set appropriate timeout values to prevent long-running function abuse"
+          "Set appropriate timeout values to prevent long-running function abuse",
+          "Set AWS Budgets and Cost Anomaly Detection alerts, and cap SQS-triggered functions with event source maximum concurrency"
+        ],
+        "ssrf-attack": [
+          "Validate user-supplied URLs against an allowlist and disable non-HTTP schemes (file://, gopher://) in the HTTP client",
+          "Scope the execution role to specific resource ARNs",
+          "Keep URL-fetching functions out of the VPC unless they need it, and restrict egress of VPC-attached functions with security groups and endpoint policies"
+        ],
+        "supply-chain-attack": [
+          "Enforce Lambda code signing with an AWS Signer profile and UntrustedArtifactOnDeployment set to Enforce for .zip functions",
+          "Restrict which layers functions may use with the lambda:Layer IAM condition key and reference layers by version ARN",
+          "Enable Amazon Inspector Lambda scanning to flag vulnerable dependencies in function packages and layers"
         ]
       }
     },
@@ -154,17 +172,21 @@
         "sensitive-data-exposure",
         "excessive-permissions",
         "dos-attack",
-        "unauthorized-access"
+        "unauthorized-access",
+        "search-index-poisoning",
+        "misconfiguration"
       ],
       "threatContext": {
         "prompt-injection": "Guardrail bypass via indirect injection through RAG knowledge bases, jailbreaking foundation models (Claude, Titan, Llama), multi-turn conversation manipulation to override system prompts",
         "ai-training-data-poisoning": "Malicious documents uploaded to Knowledge Bases for RAG poisoning, fine-tuning dataset manipulation via S3, compromised custom model imports",
         "sensitive-data-exposure": "PII leakage in model responses, conversation history exposure in CloudWatch Logs, embedding vectors revealing source document content, fine-tuning data exposure in S3",
-        "ai-model-extraction": "Systematic querying of custom fine-tuned models to replicate specialized behavior, embedding model output analysis to reconstruct proprietary knowledge",
+        "ai-model-extraction": "Copying customer weights from S3 buckets staged for Custom Model Import, systematic querying of fine-tuned custom models to replicate specialised behaviour",
         "excessive-permissions": "IAM policies with bedrock:* allowing invocation of all models, knowledge base access, and fine-tuning operations; overly broad InvokeModel permissions enabling access to all foundation models",
         "dos-attack": "Provisioned throughput exhaustion, on-demand quota consumption, large context window requests consuming model capacity",
         "unauthorized-access": "Misconfigured resource policies or cross-account access exposing models and knowledge bases, IAM credential theft providing access to model invocation and fine-tuning operations",
-        "insecure-output-handling": "Model responses from InvokeModel/Converse rendered as HTML/Markdown (stored XSS) or passed to eval, shell or SQL; toolUse.input arguments driving downstream code, which Bedrock Guardrails content filters do not evaluate"
+        "insecure-output-handling": "Model responses from InvokeModel/Converse rendered as HTML/Markdown (stored XSS) or passed to eval, shell or SQL; toolUse.input arguments driving downstream code to bypass Bedrock Guardrails content filters",
+        "search-index-poisoning": "Documents planted in Knowledge Base S3 data sources or connected web/Confluence/SharePoint sources are chunked into the vector store and retrieved as authoritative answers, poisoned chunks crafted to rank highly for target queries",
+        "misconfiguration": "Model invocation without a required guardrail, Knowledge Base data sources and custom model output buckets with permissive S3 policies, no IAM or SCP deny limiting which foundation models can be invoked, invocation logs written unencrypted or not at all"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -187,7 +209,8 @@
         "ai-model-extraction": [
           "Enforce per-model IAM policies restricting InvokeModel to specific foundation model ARNs",
           "Configure Bedrock model invocation logging to CloudWatch to detect high-volume systematic querying",
-          "Implement application-layer rate limiting on model inference endpoints"
+          "Implement application-layer rate limiting on model inference endpoints",
+          "Encrypt custom and imported models with customer-managed KMS keys and restrict access to the S3 buckets holding their weights"
         ],
         "sensitive-data-exposure": [
           "Enable Bedrock Guardrails with PII filters to redact sensitive data from model responses",
@@ -204,13 +227,25 @@
         "dos-attack": [
           "Configure service quota limits for Bedrock model invocation throughput per account and region",
           "Implement application-level rate limiting and request queuing before Bedrock API calls",
-          "Use CloudWatch alarms on InvocationCount and InvocationLatency metrics to detect abnormal usage"
+          "Use CloudWatch alarms on InvocationCount and InvocationLatency metrics to detect abnormal usage",
+          "Create AWS Budgets and Cost Anomaly Detection monitors on Bedrock spend"
         ],
         "unauthorized-access": [
           "Use Bedrock resource policies to restrict cross-account access with explicit deny for unauthorized principals",
           "Enforce VPC endpoint policies limiting which IAM principals can invoke Bedrock APIs",
           "Enable CloudTrail logging for all Bedrock API calls and alert on InvokeModel from unexpected principals",
           "Restrict Bedrock model access using IAM condition keys such as bedrock:ModelId"
+        ],
+        "search-index-poisoning": [
+          "Restrict write access to Knowledge Base data source buckets and require review before documents are synced into the vector store",
+          "Apply metadata filters on Retrieve and RetrieveAndGenerate so each user only retrieves documents they are entitled to see",
+          "Enable S3 versioning on Knowledge Base data source buckets",
+          "Monitor CloudTrail for StartIngestionJob and data source changes outside approved pipelines"
+        ],
+        "misconfiguration": [
+          "Require a specific guardrail on InvokeModel and Converse calls with the bedrock:GuardrailIdentifier IAM condition key",
+          "Enable model invocation logging to an encrypted S3 bucket or CloudWatch log group with restricted access",
+          "Grant access only to approved foundation models and deny others with SCPs on bedrock:InvokeModel resource ARNs"
         ]
       }
     },
@@ -231,7 +266,7 @@
         "credential-theft",
         "data-exfiltration",
         "third-party-integration-risk",
-        "ai-model-extraction"
+        "dos-attack"
       ],
       "threatContext": {
         "prompt-injection": "Indirect prompt injection via tool return values poisoning agent context, multi-step agent chains amplifying injection across tool invocations, RAG-sourced content manipulating agent behavior",
@@ -243,8 +278,8 @@
         "unauthorized-access": "Cross-account agent invocation via misconfigured resource policies, unauthorized tool registration allowing rogue tools in agent workflows, missing identity verification on agent-to-agent communication",
         "data-exfiltration": "Agent tool connectors orchestrating multi-step data extraction across S3, DynamoDB, and other data sources in a single session, agent session logs aggregating sensitive data from multiple systems into CloudWatch",
         "third-party-integration-risk": "MCP server connections to third-party services introducing trust dependencies on external tool providers, agent workflows routing data through external endpoints without visibility into third-party security posture",
-        "ai-model-extraction": "Systematic querying of custom AgentCore agents to extract enterprise knowledge encoded in agent configurations, prompt templates, and tool invocation patterns",
-        "insecure-output-handling": "Agent-generated tool arguments forwarded through AgentCore Gateway to Lambda, OpenAPI or MCP targets that build SQL, shell or API calls from them, model-written code executed outside a sandbox, agent responses rendered as HTML/Markdown"
+        "insecure-output-handling": "Agent-generated tool arguments forwarded through AgentCore Gateway to Lambda, OpenAPI or MCP targets that build SQL, shell or API calls from them, model-written code executed outside a sandbox, agent responses rendered as HTML/Markdown",
+        "dos-attack": "Prompt-induced agent loops repeatedly invoking models and tools, long-running sessions consuming Runtime compute, recursive multi-agent calls exhausting Bedrock quotas and driving pay-per-use cost"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -257,7 +292,8 @@
           "Configure per-tool permission scoping in AgentCore to restrict which resources each tool connector can access",
           "Enable human-in-the-loop approval workflows for destructive or sensitive tool invocations",
           "Use AgentCore observability to monitor tool invocation sequences and alert on anomalous patterns",
-          "Implement tool connector authentication using IAM-based identity verification for all registered tools"
+          "Implement tool connector authentication using IAM-based identity verification for all registered tools",
+          "Use AgentCore Identity OAuth user-delegated access for tools instead of a shared role"
         ],
         "excessive-permissions": [
           "Create separate IAM roles for agent runtime, tool connectors, and session management with least-privilege policies",
@@ -297,16 +333,16 @@
           "Monitor tool connector traffic patterns for unexpected data flows to third-party MCP server endpoints",
           "Implement agent-level isolation so a compromised third-party MCP server cannot affect other agent deployments"
         ],
-        "ai-model-extraction": [
-          "Implement per-user rate limiting on agent invocation endpoints to prevent systematic knowledge extraction",
-          "Monitor agent interaction patterns in CloudWatch Logs for high-volume querying indicative of extraction attempts",
-          "Use Bedrock model monitoring integration to detect distribution shifts from extraction-style query patterns"
-        ],
         "insecure-output-handling": [
           "Treat agent responses and tool-call arguments as untrusted in Gateway targets; never pass them to eval, shell or SQL",
           "Attach AgentCore Policy to the Gateway with Cedar rules restricting tool input parameters to expected values",
           "Run model-generated code only in AgentCore Code Interpreter in Sandbox network mode with a least-privilege role",
           "Encode agent output for its rendering context and apply a Content Security Policy when displaying it in a browser"
+        ],
+        "dos-attack": [
+          "Cap agent iterations, tool calls and tokens per session in the agent framework and end sessions that exceed them",
+          "Create AWS Budgets and Cost Anomaly Detection monitors covering AgentCore Runtime and Bedrock model invocation spend",
+          "Alert on CloudWatch InvocationCount and token-count spikes from agent execution roles, and tag agent model spend with application inference profiles to attribute cost"
         ]
       }
     },
@@ -325,17 +361,19 @@
         "unauthorized-access",
         "data-exfiltration",
         "excessive-permissions",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "dos-attack"
       ],
       "threatContext": {
         "prompt-injection": "Prompt injection against LLM endpoints hosted on SageMaker real-time or batch inference, JumpStart foundation model jailbreaking",
-        "misconfiguration": "Notebook instances with root access enabled, public endpoint deployment without authentication, S3 model artifact buckets with overly permissive policies, Studio domain with internet access enabled",
+        "misconfiguration": "Notebook instances with root access or direct internet access enabled, Studio domains in PublicInternetOnly mode, model artifact buckets with permissive policies, endpoints and training jobs without network isolation or KMS keys",
         "unauthorized-access": "Notebook instance IAM role abuse via IMDS (http://169.254.169.254), presigned URL abuse for model artifacts, execution role assumption from compromised training jobs",
         "data-exfiltration": "Training data extraction via notebook instances, model artifact theft from S3, feature store bulk export, endpoint inference logging containing sensitive inputs",
         "ai-training-data-poisoning": "Malicious training data injection via S3, compromised data labeling through Ground Truth, pipeline data source manipulation",
-        "ai-model-extraction": "Endpoint querying to reconstruct model weights, batch transform job output analysis, model artifact download from S3 model registry",
+        "ai-model-extraction": "Model artifact (model.tar.gz) download from S3 or the Model Registry via over-broad execution roles, copying weights out of a compromised notebook or training container, querying an endpoint to replicate a proprietary model's behaviour",
         "excessive-permissions": "SageMaker execution roles with s3:*, ecr:*, sagemaker:* permissions; notebook instance IAM roles with overly broad access; Studio domain execution role allowing access to all data sources",
-        "sensitive-data-exposure": "Training data containing PII in S3 datasets, model artifacts with embedded sensitive information, experiment tracking logs revealing sensitive hyperparameters, inference logs containing user data"
+        "sensitive-data-exposure": "Training data containing PII in S3 datasets, model artifacts with embedded sensitive information, experiment tracking logs revealing sensitive hyperparameters, inference logs containing user data",
+        "dos-attack": "Inference floods or long-context LLM requests saturating endpoint instances, auto scaling or serverless inference scaling out to maximum and running up cost, async inference queues filled with large payloads"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -360,15 +398,15 @@
           "Restrict access to model artifacts in S3 and the SageMaker Model Registry with least-privilege IAM and KMS key policies"
         ],
         "misconfiguration": [
-          "Disable root access on SageMaker notebook instances via NotebookInstanceLifecycleConfig",
+          "Disable root access on notebook instances with the RootAccess=Disabled setting and detect drift with the sagemaker-notebook-instance-root-access-check Config rule",
           "Enforce VPC-only mode for notebook instances, training jobs, and endpoints using IAM condition keys",
-          "Use AWS Config rules to detect publicly accessible SageMaker endpoints and non-compliant configurations",
+          "Use AWS Config rules sagemaker-notebook-no-direct-internet-access and sagemaker-endpoint-configuration-kms-key-configured to detect non-compliant resources",
           "Disable direct internet access on SageMaker Studio domains and use VPC endpoints instead"
         ],
         "unauthorized-access": [
           "Enforce IMDSv2 on SageMaker notebook instances to prevent SSRF-based credential theft",
-          "Use IAM database authentication and presigned URL expiration policies for model artifacts",
-          "Restrict SageMaker API access using VPC endpoint policies and IAM condition keys (sagemaker:VpcSecurityGroups)",
+          "Set short SessionExpirationDurationInSeconds (and ExpiresInSeconds on Studio domain URLs) for presigned URLs and restrict CreatePresigned*Url to named administrators",
+          "Restrict SageMaker API access using VPC endpoint policies and IAM condition keys (sagemaker:VpcSubnets, sagemaker:VpcSecurityGroupIds)",
           "Enable CloudTrail logging for all SageMaker API calls and alert on unauthorized CreatePresignedNotebookInstanceUrl"
         ],
         "data-exfiltration": [
@@ -387,7 +425,12 @@
           "Encrypt training data and model artifacts at rest using customer-managed KMS keys",
           "Enable inter-container traffic encryption for distributed training jobs",
           "Configure SageMaker endpoints with KMS encryption and disable inference logging for sensitive workloads",
-          "Use SageMaker Clarify to detect and flag PII in training datasets before model training"
+          "Use Amazon Macie to discover PII in training data S3 buckets before model training"
+        ],
+        "dos-attack": [
+          "Set MaxCapacity on endpoint auto scaling and MaxConcurrency on serverless inference",
+          "Create AWS Budgets and Cost Anomaly Detection monitors on SageMaker usage, alerting on spikes in endpoint instance hours",
+          "Front endpoints with API Gateway usage plans or application rate limits and cap request payload and max token parameters"
         ]
       }
     },
@@ -407,14 +450,15 @@
       "threatContext": {
         "sql-injection": "Database-engine specific injection via MySQL, PostgreSQL, Oracle, or SQL Server syntax depending on RDS instance type",
         "unauthorized-access": "Public accessibility enabled, overly permissive security groups, IAM database authentication bypass, master user credential exposure",
-        "data-exfiltration": "Snapshot sharing to external AWS accounts, cross-region replication to attacker-controlled accounts, SELECT INTO OUTFILE abuse",
+        "data-exfiltration": "Public or cross-account snapshot sharing via ModifyDBSnapshotAttribute, snapshot export to S3 (StartExportTask), aws_s3.query_export_to_s3 from RDS for PostgreSQL via the instance IAM role, bulk dumps over a compromised connection",
         "backup-exposure": "Unencrypted automated snapshots, snapshot sharing with unauthorized accounts, manual snapshot copy to external accounts"
       },
       "threatMitigations": {
         "sql-injection": [
           "Use parameterized queries and prepared statements in all application database interactions",
           "Enable RDS database activity streams or audit logging to detect injection attempts",
-          "Restrict database user permissions to minimum required tables and operations using GRANT statements"
+          "Restrict database user permissions to minimum required tables and operations using GRANT statements",
+          "Remove unneeded aws_s3, aws_lambda, dblink and postgres_fdw extensions and IAM role associations"
         ],
         "unauthorized-access": [
           "Disable public accessibility on RDS instances and place them in private subnets",
@@ -438,7 +482,7 @@
           "Enforce encryption on all RDS snapshots using customer-managed KMS keys",
           "Use AWS Config rule rds-snapshots-public-prohibited to block public snapshot sharing",
           "Restrict rds:ModifyDBSnapshotAttribute and rds:CopyDBSnapshot IAM permissions to authorized roles only",
-          "Enable AWS Backup with vault lock policies to prevent snapshot deletion or unauthorized sharing"
+          "Use AWS Backup Vault Lock to prevent recovery point deletion, and restrict rds:StartExportTask"
         ]
       }
     },
@@ -465,7 +509,8 @@
         "nosql-injection": [
           "Use the AWS SDK expression builder with ExpressionAttributeValues to parameterize all queries",
           "Validate and sanitize application inputs before constructing FilterExpression or ConditionExpression parameters",
-          "Restrict PartiQL statement execution via IAM policies limiting dynamodb:PartiQLSelect and dynamodb:PartiQLInsert"
+          "Restrict PartiQL statement execution via IAM policies limiting dynamodb:PartiQLSelect and dynamodb:PartiQLInsert",
+          "Pass PartiQL values as ? placeholders in the ExecuteStatement Parameters list instead of concatenating them into the statement"
         ],
         "unauthorized-access": [
           "Scope IAM policies to specific DynamoDB table ARNs and actions rather than using dynamodb:* wildcards",
@@ -507,7 +552,7 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "sql-injection": "MySQL or PostgreSQL compatible injection depending on Aurora edition, stored procedure abuse, LOAD DATA INFILE exploitation",
+        "sql-injection": "MySQL or PostgreSQL compatible injection depending on Aurora edition, stored procedure abuse, LOAD DATA FROM S3 and SELECT INTO OUTFILE S3 or lambda_sync() calls through the cluster's IAM role",
         "unauthorized-access": "Aurora Serverless Data API credential exposure, public cluster endpoint, IAM database authentication misconfiguration",
         "data-exfiltration": "Cluster snapshot sharing, Aurora Global Database replication abuse, S3 export feature exploitation, cloning to external accounts",
         "backup-exposure": "Automated backup snapshot sharing, cross-account cluster cloning, unencrypted cluster volume snapshots"
@@ -516,7 +561,8 @@
         "sql-injection": [
           "Use parameterized queries and prepared statements for all Aurora MySQL and PostgreSQL interactions",
           "Enable Aurora advanced auditing (audit_log plugin for MySQL, pgAudit for PostgreSQL) to detect injection attempts",
-          "Restrict database user permissions using GRANT statements scoped to specific schemas and operations"
+          "Restrict database user permissions using GRANT statements scoped to specific schemas and operations",
+          "Remove unneeded IAM role associations, aws_s3 and aws_lambda extensions and the aws_default_s3_role and aws_default_lambda_role parameters"
         ],
         "unauthorized-access": [
           "Disable public accessibility on Aurora clusters and deploy in private subnets only",
@@ -526,7 +572,7 @@
         ],
         "data-exfiltration": [
           "Restrict rds:CopyDBClusterSnapshot and rds:ModifyDBClusterSnapshotAttribute IAM permissions to authorized roles",
-          "Use AWS Config rule rds-cluster-snapshot-public-prohibited to block public snapshot sharing",
+          "Use AWS Config rule rds-snapshots-public-prohibited to detect publicly shared DB and cluster snapshots",
           "Enable Aurora database activity streams forwarded to Kinesis for real-time query monitoring",
           "Restrict rds:RestoreDBClusterToPointInTime and rds:CreateDBCluster permissions to prevent unauthorized cloning"
         ],
@@ -539,7 +585,7 @@
         "backup-exposure": [
           "Enforce encryption on Aurora cluster snapshots using customer-managed KMS keys",
           "Restrict rds:ModifyDBClusterSnapshotAttribute permissions to prevent unauthorized snapshot sharing",
-          "Use AWS Backup vault lock policies to prevent snapshot deletion or cross-account transfer",
+          "Use AWS Backup Vault Lock to prevent recovery point deletion, and restrict rds:StartExportTask for cluster snapshots",
           "Use AWS Config rule rds-snapshots-public-prohibited (covers DB cluster snapshots) to detect and remediate public snapshots"
         ]
       }
@@ -554,12 +600,14 @@
         "unauthorized-access",
         "cache-poisoning",
         "data-exfiltration",
-        "misconfiguration"
+        "misconfiguration",
+        "backup-exposure"
       ],
       "threatContext": {
         "unauthorized-access": "Redis AUTH token exposure, missing encryption in transit, security group allowing broad access, Memcached SASL authentication bypass",
         "cache-poisoning": "Malicious key injection via application vulnerabilities, session data manipulation, cache writes using stolen AUTH tokens or over-privileged RBAC users",
-        "data-exfiltration": "Redis RDB file access via BGSAVE, replication to rogue Redis instance, Memcached stats command for data enumeration"
+        "data-exfiltration": "Snapshot export to an S3 bucket the attacker can read (elasticache:CopySnapshot), key enumeration via SCAN followed by bulk GET with stolen RBAC credentials; BGSAVE, SYNC and REPLICAOF are restricted on ElastiCache",
+        "backup-exposure": "Manual and automatic snapshots exported to S3 with permissive bucket policies, snapshot copies retained past policy, unencrypted snapshots of clusters created without at-rest encryption"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -576,7 +624,7 @@
         "data-exfiltration": [
           "Enable encryption at rest using customer-managed KMS keys for ElastiCache Redis clusters",
           "Restrict ElastiCache cluster access to private subnets with no public-facing endpoints",
-          "Use VPC security groups to block outbound replication traffic to unauthorized Redis instances",
+          "Restrict elasticache:CopySnapshot to backup roles and alert via CloudTrail on snapshot exports to S3",
           "Enable CloudTrail API logging and monitor for CreateReplicationGroup or ModifyReplicationGroup calls"
         ],
         "misconfiguration": [
@@ -584,6 +632,12 @@
           "Enforce encryption in transit and at rest via service control policies on ElastiCache resources",
           "Configure automatic minor version upgrades to receive Redis/Memcached security patches",
           "Enable ElastiCache events via SNS notifications to detect parameter group or security group changes"
+        ],
+        "backup-exposure": [
+          "Grant ElastiCache access to S3 export buckets through a bucket policy scoped to the service, and block public access and other principals on those buckets",
+          "Restrict elasticache:CopySnapshot, CreateSnapshot and ExportServerlessCacheSnapshot to backup administrator roles",
+          "Enable at-rest encryption with a customer-managed KMS key",
+          "Set snapshot retention limits and alert via CloudTrail on CopySnapshot calls that target an S3 bucket"
         ]
       }
     },
@@ -599,14 +653,16 @@
         "data-exfiltration",
         "misconfiguration",
         "sensitive-data-exposure",
-        "backup-exposure"
+        "backup-exposure",
+        "search-index-poisoning"
       ],
       "threatContext": {
         "query-injection": "Query DSL injection via _search endpoint, script injection in Painless scripts, SQL plugin query injection",
         "unauthorized-access": "Public domain endpoint exposure, fine-grained access control bypass, IAM-based access policy misconfiguration, Kibana/Dashboards anonymous access",
         "data-exfiltration": "Bulk API data extraction, snapshot to S3 repository theft, cross-cluster replication abuse, scroll API for large dataset extraction",
         "sensitive-data-exposure": "Index data exposure via public access, log data containing PII, Dashboards saved objects with sensitive queries",
-        "backup-exposure": "Automated snapshots to S3 repository accessible to unauthorized principals, manual snapshot sharing, snapshot repository policy misconfiguration"
+        "backup-exposure": "Automated snapshots to S3 repository accessible to unauthorized principals, manual snapshot sharing, snapshot repository policy misconfiguration",
+        "search-index-poisoning": "Bulk or _doc writes with stolen or over-scoped FGAC credentials injecting content into k-NN/RAG or site-search indices, ingest pipeline tampering, alias swaps pointing searches at an attacker-built index"
       },
       "threatMitigations": {
         "query-injection": [
@@ -643,6 +699,12 @@
           "Encrypt snapshot repositories using customer-managed KMS keys",
           "Use IAM policies to restrict es:ESHttpPut on _snapshot endpoints to authorized snapshot management roles",
           "Enable S3 bucket versioning and access logging on snapshot repository buckets"
+        ],
+        "search-index-poisoning": [
+          "Grant indices:data/write/* only to the ingestion role through FGAC index permissions and keep search clients read-only",
+          "Enable FGAC audit logs for write and index-management events and alert on writes from identities other than the ingestion role",
+          "Apply document-level security so search and RAG retrieval return only documents the caller may see",
+          "Keep a re-indexable source of truth or snapshots, and rebuild poisoned indexes and swap them in via an alias"
         ]
       }
     },
@@ -660,26 +722,28 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "bucket-misconfiguration": "Public bucket enumeration via s3scanner/bucket_finder, misconfigured bucket policies allowing wildcard principals, disabled Block Public Access settings",
+        "bucket-misconfiguration": "Public bucket enumeration via s3scanner/bucket_finder, bucket policies allowing wildcard principals, disabled Block Public Access, publicly writable buckets serving JavaScript (Magecart-style tampering), re-registration of deleted bucket names still referenced by DNS, CloudFront or code",
         "data-exfiltration": "Bulk object downloads via AWS CLI, S3 Batch Operations abuse, cross-account replication to attacker-controlled buckets",
         "unauthorized-access": "Pre-signed URL abuse, overly permissive IAM policies, ACL-based access to objects",
-        "backup-exposure": "S3 Versioning exposing deleted/overwritten sensitive objects, Cross-Region Replication to unauthorized accounts, S3 Object Lock bypass attempts"
+        "backup-exposure": "S3 Versioning retaining deleted or overwritten sensitive objects, replication or AWS Backup copies in accounts with weaker policies, S3 Inventory and Batch Operations reports in less-protected buckets, manual exports left in shared buckets"
       },
       "threatMitigations": {
         "bucket-misconfiguration": [
           "Enable S3 Block Public Access at account and bucket level",
           "Use S3 bucket policies with explicit deny for unintended principals",
           "Enable AWS Config rule s3-bucket-public-read-prohibited",
-          "Disable ACLs using S3 Object Ownership (BucketOwnerEnforced)"
+          "Disable ACLs using S3 Object Ownership (BucketOwnerEnforced)",
+          "Alert via EventBridge on PutBucketPolicy, PutBucketAcl and DeletePublicAccessBlock, and deny them by SCP to all but deployment roles"
         ],
         "data-exfiltration": [
           "Enable S3 server access logging and CloudTrail data events",
           "Use VPC endpoints with restrictive policies for S3 access",
           "Apply S3 bucket policies restricting access to specific VPC endpoints or IP ranges",
-          "Enable Amazon Macie for automated sensitive data discovery"
+          "Enable Amazon Macie for automated sensitive data discovery",
+          "Restrict S3 VPC endpoint policies to buckets in your organisation with aws:ResourceOrgID"
         ],
         "sensitive-data-exposure": [
-          "Enable default SSE-S3 or SSE-KMS encryption on all buckets",
+          "Use SSE-KMS with a customer-managed key and restrict kms:Decrypt to authorised readers",
           "Use S3 Object Lock for compliance-critical data",
           "Enable Amazon Macie to scan for and alert on PII/sensitive data",
           "Use presigned URLs with short expiration for temporary access"
@@ -693,7 +757,7 @@
         "backup-exposure": [
           "Enable S3 Object Lock in governance or compliance mode to prevent version deletion",
           "Restrict s3:DeleteObjectVersion and s3:PutLifecycleConfiguration via IAM policies",
-          "Use AWS Config rules to detect buckets with Cross-Region Replication to unauthorized accounts",
+          "Restrict s3:PutReplicationConfiguration to deployment roles via SCP and alert on replication rules whose destination account is outside the organisation",
           "Enable MFA Delete on versioned buckets to require multi-factor authentication for deletions"
         ]
       }
@@ -714,7 +778,7 @@
       "threatContext": {
         "unauthorized-access": "NFS mount from unauthorized EC2 instances, overly permissive security groups, missing IAM authorization",
         "data-exfiltration": "Bulk file copy via mounted NFS shares, AWS DataSync to external destinations",
-        "misconfiguration": "Public mount targets, disabled encryption in transit, overly permissive file system policies",
+        "misconfiguration": "Default file system policy granting anonymous read, write and root to any client that can reach a mount target, mount target security groups open on NFS 2049, mounts without TLS, file system policies EFS classifies as public",
         "backup-exposure": "AWS Backup vault access by unauthorized principals, cross-region backup copy, recovery point sharing to external accounts"
       },
       "threatMitigations": {
@@ -722,10 +786,10 @@
           "Enforce IAM authorization on the EFS file system policy to restrict mount access to specific IAM roles",
           "Restrict mount target security groups to allow NFS (port 2049) only from authorized subnets",
           "Use EFS access points with POSIX user/group enforcement to isolate application-level access",
-          "Enable VPC-only access and remove any public mount target configurations"
+          "Attach a restrictive file system policy to every file system"
         ],
         "data-exfiltration": [
-          "Restrict EFS file system policies to deny access from outside the VPC using aws:SourceVpc conditions",
+          "Grant ClientMount and ClientWrite in the file system policy only to named IAM roles with elasticfilesystem:AccessedViaMountTarget, and mount with -o tls,iam",
           "Enable VPC Flow Logs on subnets hosting EFS mount targets to detect unusual data transfer volumes",
           "Use EFS access points with root directory enforcement to limit accessible file paths per application"
         ],
@@ -733,7 +797,7 @@
           "Enable encryption in transit by mounting with the TLS mount helper option (-o tls)",
           "Enable encryption at rest using a customer-managed KMS key at file system creation",
           "Use AWS Config rules to detect EFS file systems without encryption or with overly permissive policies",
-          "Configure EFS lifecycle policies to transition infrequently accessed data and reduce exposure surface"
+          "Deny elasticfilesystem:ClientRootAccess except to named admin roles, and do not grant public access in file system policies"
         ],
         "sensitive-data-exposure": [
           "Enable encryption at rest with a customer-managed KMS key and enforce encryption in transit via mount helper",
@@ -761,7 +825,9 @@
         "supply-chain-attack",
         "credential-theft",
         "lateral-movement",
-        "kubernetes-secrets-exposure"
+        "kubernetes-secrets-exposure",
+        "ssrf-attack",
+        "backup-exposure"
       ],
       "threatContext": {
         "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, hostPID/hostNetwork namespace sharing, kernel exploit escalation from container",
@@ -771,14 +837,17 @@
         "supply-chain-attack": "Malicious images from public ECR, compromised Helm charts, typosquatting in container registries, admission controller bypass for unscanned images",
         "credential-theft": "Pod access to EC2 Instance Metadata Service (http://169.254.169.254) for IAM role credential theft, service account token theft from mounted volumes, EKS Pod Identity credential extraction",
         "lateral-movement": "Pod-to-pod communication via default-allow NetworkPolicy, VPC-level pivoting from compromised nodes, cross-namespace service access, AWS VPC CNI allowing direct IP routing between pods",
-        "kubernetes-secrets-exposure": "Secrets readable by any principal with get/list on Secret resources via the Kubernetes API, ServiceAccount tokens auto-mounted to pods, IAM principals granted cluster-admin through access entries or the legacy aws-auth ConfigMap"
+        "kubernetes-secrets-exposure": "Secrets readable by any principal with get/list on Secret resources via the Kubernetes API, ServiceAccount tokens auto-mounted to pods, IAM principals granted cluster-admin through access entries or the legacy aws-auth ConfigMap",
+        "ssrf-attack": "SSRF from a pod to node IMDS where the hop limit is 2 or the pod uses hostNetwork, yielding node role credentials; file:// SSRF reading the IRSA token file",
+        "backup-exposure": "AWS Backup EKS recovery points and Velero backups in S3 contain every Secret and ConfigMap alongside PV snapshots; reading Velero's bucket, or restoring a recovery point into a cluster the attacker controls, discloses them"
       },
       "threatMitigations": {
         "container-escape": [
           "Enforce Pod Security Standards (Restricted profile) to block privileged pods, hostPath mounts, and hostPID/hostNetwork",
           "Use Bottlerocket or Amazon Linux 2023 optimized AMIs with minimal attack surface for worker nodes",
           "Deploy a policy engine (Kyverno or OPA Gatekeeper) to reject pod specs with dangerous security contexts",
-          "Enable AppArmor or seccomp profiles on worker nodes to restrict container syscall capabilities"
+          "Enable AppArmor or seccomp profiles on worker nodes to restrict container syscall capabilities",
+          "Update node AMIs promptly through managed node group AMI releases or Bottlerocket updates"
         ],
         "misconfiguration": [
           "Restrict public API server endpoint access using authorized CIDR blocks or disable it entirely in favor of private endpoint",
@@ -820,7 +889,19 @@
           "Use a customer-managed KMS key for EKS envelope encryption (AWS-owned key is the default on 1.28+) and restrict kms:Decrypt on it",
           "Use AWS Secrets Manager or Parameter Store via CSI Secrets Store driver instead of native Kubernetes Secrets",
           "Restrict RBAC access to Secret resources with namespace-scoped Roles instead of ClusterRoles",
-          "Disable automountServiceAccountToken on pods that do not require Kubernetes API access"
+          "Disable automountServiceAccountToken on pods that do not require Kubernetes API access",
+          "Restrict create on pods and workload controllers in namespaces holding sensitive Secrets"
+        ],
+        "ssrf-attack": [
+          "Set IMDSv2 hop limit to 1 on node launch templates, or block pod egress to 169.254.169.254/32 with NetworkPolicy, for pods not on hostNetwork",
+          "Use EKS Pod Identity or IRSA for pod credentials, and keep the node role to the managed minimum",
+          "Validate user-supplied URLs against an allowlist and disable non-HTTP schemes (file://, gopher://) in HTTP client libraries",
+          "Alert on GuardDuty InstanceCredentialExfiltration findings for node role credentials, and enable EKS Protection to flag anomalous Kubernetes API activity"
+        ],
+        "backup-exposure": [
+          "Encrypt AWS Backup vaults holding EKS recovery points with a customer-managed KMS key and restrict backup:StartRestoreJob to backup administrators",
+          "Store Velero backups in a dedicated S3 bucket with SSE-KMS and Block Public Access, readable only by the Velero IAM role",
+          "Alert via CloudTrail on EKS restore jobs, cross-account recovery point copies and reads of the Velero bucket"
         ]
       }
     },
@@ -837,7 +918,8 @@
         "privilege-escalation",
         "supply-chain-attack",
         "credential-theft",
-        "lateral-movement"
+        "lateral-movement",
+        "ssrf-attack"
       ],
       "threatContext": {
         "container-escape": "Privileged container mode enabling host access, Docker socket mount exploitation, SYS_ADMIN capability abuse, host networking mode bypassing isolation",
@@ -845,8 +927,9 @@
         "unauthorized-access": "Task IAM role credential theft via container metadata endpoint (http://169.254.170.2), ECS exec access without proper authorization, service auto-scaling abuse",
         "privilege-escalation": "Task role assumption with overly permissive IAM policies, container instance role abuse, ECS exec for root shell access, privileged container to host escape",
         "supply-chain-attack": "Malicious images from ECR or Docker Hub referenced by task definitions, compromised base images, image tag mutation attacks on mutable tags",
-        "credential-theft": "Task IAM role credential theft via container credential endpoint (http://169.254.170.2), ECS exec session credential exposure, container instance profile credential theft via IMDS on EC2 launch type",
-        "lateral-movement": "Task-to-task communication within VPC via awsvpc networking, container instance pivoting to other ECS services, service discovery endpoint exploitation"
+        "credential-theft": "Task IAM role credential theft via the container credential endpoint (http://169.254.170.2), container instance role theft via IMDS on EC2 capacity, ECScape-style impersonation of the ECS agent to obtain co-located tasks' role credentials, ECS Exec session abuse",
+        "lateral-movement": "Task-to-task communication within VPC via awsvpc networking, container instance pivoting to other ECS services, service discovery endpoint exploitation",
+        "ssrf-attack": "SSRF from a task on EC2 capacity to the container instance IMDS (awsvpc and host-mode tasks reach it even with hop limit 1), or file:// SSRF reading /proc/self/environ for AWS_CONTAINER_CREDENTIALS_RELATIVE_URI, then fetching task role keys from 169.254.170.2"
       },
       "threatMitigations": {
         "container-escape": [
@@ -865,7 +948,7 @@
           "Scope ECS task IAM roles to the minimum required permissions with specific resource ARNs",
           "Restrict ECS exec access using IAM policies with ecs:ExecuteCommand condition keys",
           "Use VPC endpoints for ECS API access to prevent task metadata exposure outside the VPC",
-          "Enforce container instance IMDSv2 with hop limit of 1 to block credential theft from containers on EC2 launch type"
+          "Set ECS_AWSVPC_BLOCK_IMDS=true and block docker0 to 169.254.169.254 for bridge tasks"
         ],
         "privilege-escalation": [
           "Create per-service task roles with least-privilege IAM policies scoped to specific resource ARNs",
@@ -883,13 +966,20 @@
           "Use Fargate launch type to eliminate container instance IMDS credential exposure",
           "Scope ECS task IAM roles to specific resource ARNs and avoid wildcard permissions",
           "Rotate ECS exec session credentials by enforcing short session durations via IAM policies",
-          "Reference secrets from Secrets Manager in task definitions instead of passing credentials as environment variables"
+          "Reference secrets from Secrets Manager in task definitions instead of passing credentials as environment variables",
+          "Do not co-locate tasks of different trust levels on one EC2 container instance"
         ],
         "lateral-movement": [
           "Configure per-task security groups in awsvpc mode to restrict task-to-task communication",
           "Implement VPC network segmentation with dedicated subnets for different ECS service tiers",
           "Enable VPC Flow Logs and GuardDuty to detect unusual traffic patterns between ECS tasks",
           "Use AWS Cloud Map service discovery with restricted DNS-based access controls"
+        ],
+        "ssrf-attack": [
+          "Set ECS_AWSVPC_BLOCK_IMDS=true in /etc/ecs/ecs.config and block docker0 traffic to 169.254.169.254 with iptables for bridge-mode tasks",
+          "Run internet-facing services on Fargate rather than EC2 container instances",
+          "Validate user-supplied URLs against an allowlist and disable non-HTTP schemes (file://, gopher://) in HTTP client libraries",
+          "Restrict task egress with security groups and VPC endpoints, and alert on GuardDuty findings for instance credentials used outside AWS"
         ]
       }
     },
@@ -905,15 +995,17 @@
         "excessive-permissions",
         "privilege-escalation",
         "supply-chain-attack",
-        "credential-theft"
+        "credential-theft",
+        "lateral-movement"
       ],
       "threatContext": {
-        "container-escape": "Firecracker microVM escape attempts, container breakout via kernel vulnerabilities (limited by Fargate isolation), a compromised container reaching sidecars over the shared task network namespace (localhost) or shared task volumes",
+        "container-escape": "Escape lands in AWS's per-task VM isolation boundary, not a shared host; realistic reach is the task's other containers via the shared network namespace (localhost) and task volumes. Fargate blocks privileged mode and allows only SYS_PTRACE to be added",
         "misconfiguration": "Task definition with unnecessary capabilities, ECS exec enabled on production tasks, public IP assignment without security groups, secrets passed as environment variables instead of Secrets Manager",
         "excessive-permissions": "Task execution role with s3:*, dynamodb:*, or other wildcard permissions, task role allowing cross-account access, overly broad ECR pull permissions",
         "privilege-escalation": "Task role credential theft via metadata endpoint, ECS exec to gain shell access, init container abuse for privilege escalation",
         "supply-chain-attack": "Malicious images from ECR or public registries, compromised base images in task definitions, dependency poisoning in application dependencies",
-        "credential-theft": "Task IAM role credential theft via Fargate credential endpoint, ECS exec session credential exposure, environment variable credential leakage"
+        "credential-theft": "Task IAM role credential theft via Fargate credential endpoint, ECS exec session credential exposure, environment variable credential leakage",
+        "lateral-movement": "A compromised task reaching other tasks, databases and internal services through its awsvpc ENI and security groups, Service Connect or Cloud Map discovery of internal endpoints"
       },
       "threatMitigations": {
         "container-escape": [
@@ -949,8 +1041,13 @@
         "credential-theft": [
           "Scope Fargate task IAM roles to minimum required permissions with specific resource ARNs",
           "Reference secrets from Secrets Manager in task definitions instead of passing credentials as environment variables",
-          "Enable CloudTrail logging for ECS API calls and alert on GetTaskProtection or ExecuteCommand from unexpected principals",
+          "Alert in CloudTrail on ecs:ExecuteCommand by unexpected principals and on task role sessions used from outside your VPC egress IPs",
           "Use short-lived IAM role session credentials by configuring appropriate session duration limits"
+        ],
+        "lateral-movement": [
+          "Give each Fargate service its own security group and allow inbound only from the specific upstream security groups",
+          "Restrict task egress with security group rules and VPC endpoints instead of open 0.0.0.0/0 outbound",
+          "Enable VPC Flow Logs and GuardDuty Runtime Monitoring for ECS on Fargate to detect anomalous connections"
         ]
       }
     },
@@ -1006,7 +1103,6 @@
       "category": "container",
       "description": "Fully managed container application service",
       "threatIds": [
-        "container-escape",
         "misconfiguration",
         "unauthorized-access",
         "dos-attack",
@@ -1014,7 +1110,6 @@
         "credential-theft"
       ],
       "threatContext": {
-        "container-escape": "Sandbox escape attempts via kernel vulnerabilities from a compromised container process, attempted breakout from the AWS-managed isolation boundary App Runner runs each service instance in",
         "misconfiguration": "Public endpoint without authentication, overly permissive VPC connector access, secrets in environment variables instead of Secrets Manager references, auto-scaling limits too high enabling cost attacks",
         "unauthorized-access": "Instance role credential theft via IMDS, public service URL without WAF protection, ECR access role with excessive permissions",
         "dos-attack": "Auto-scaling limit exhaustion, request timeout exploitation, cold start amplification attacks, connection pool exhaustion",
@@ -1022,11 +1117,6 @@
         "credential-theft": "Instance role credential theft via IMDS endpoint, environment variable credential leakage, ECR access role token extraction"
       },
       "threatMitigations": {
-        "container-escape": [
-          "Keep container base images updated with latest security patches to minimize kernel exploit risk",
-          "Use minimal base images (distroless or Alpine) to reduce attack surface within the App Runner sandbox",
-          "Enable Amazon Inspector enhanced scanning on the ECR repositories App Runner deploys from to continuously scan service images for known vulnerabilities"
-        ],
         "misconfiguration": [
           "Configure App Runner services to use VPC connectors for private resource access instead of public endpoints",
           "Reference secrets from Secrets Manager or SSM Parameter Store in service configuration instead of environment variables",
@@ -1075,6 +1165,9 @@
         "data-exfiltration",
         "privilege-escalation"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "credential-theft": "IAM policy abuse to call GetSecretValue, resource-based policy misconfiguration allowing cross-account access, Lambda rotation function credential exposure, CloudTrail log analysis to identify high-value secret ARNs",
         "misconfiguration": "Overly permissive resource-based policies, missing encryption with customer-managed KMS key, disabled automatic rotation, public API access without VPC endpoint, missing resource tags for access control",
@@ -1082,7 +1175,7 @@
         "audit-logging-bypass": "Trail stopped or deleted, trail logging only write management events so read-only GetSecretValue calls go unrecorded, log delivery to S3 bucket disrupted",
         "unauthorized-access": "API access from untrusted networks without VPC endpoint enforcement, missing aws:SourceVpc/aws:SourceVpce conditions in policies, compromised IAM credentials used from external locations",
         "sensitive-data-exposure": "Secret values logged in application stdout/stderr, exposed through error messages in downstream services, secret names revealing infrastructure details, plaintext secrets in Lambda environment variables referencing Secrets Manager",
-        "data-exfiltration": "Systematic ListSecrets + GetSecretValue enumeration to bulk extract all secrets, cross-account replication to attacker-controlled accounts, secret extraction via compromised Lambda rotation functions",
+        "data-exfiltration": "Systematic ListSecrets + GetSecretValue enumeration to bulk extract all secrets, BatchGetSecretValue to pull many secrets in one call, PutResourcePolicy granting an attacker-controlled account read access, secret extraction via compromised Lambda rotation functions",
         "privilege-escalation": "Stored secrets containing higher-privilege credentials (database admin, root API keys), secret access enabling lateral movement to more sensitive systems, rotation Lambda role with excessive permissions"
       },
       "threatMitigations": {
@@ -1090,7 +1183,8 @@
           "Restrict GetSecretValue permissions to specific secret ARNs using IAM policy resource conditions",
           "Use resource-based policies with aws:PrincipalOrgID conditions to prevent cross-organization access",
           "Enable automatic secret rotation with Secrets Manager-managed Lambda functions on short intervals",
-          "Enforce VPC endpoint access with aws:SourceVpce conditions to block API calls from outside trusted networks"
+          "Enforce VPC endpoint access with aws:SourceVpce conditions to block API calls from outside trusted networks",
+          "On suspected exposure, call RotateSecret immediately and invalidate the old value at the target service, then review CloudTrail for GetSecretValue by that principal"
         ],
         "misconfiguration": [
           "Encrypt all secrets with customer-managed KMS keys instead of the default service key",
@@ -1108,7 +1202,7 @@
           "Log Secrets Manager management events, including GetSecretValue, in an organization trail across all regions",
           "Configure CloudWatch alarms on CloudTrail StopLogging and DeleteTrail API calls",
           "Use S3 Object Lock on CloudTrail log buckets to prevent log deletion",
-          "Integrate Secrets Manager API events with Security Hub for centralized alert monitoring"
+          "Route GuardDuty findings to Security Hub and alert via EventBridge on DeleteSecret, PutResourcePolicy and CloudTrail StopLogging events"
         ],
         "unauthorized-access": [
           "Enforce aws:SourceVpc and aws:SourceVpce conditions in secret resource policies to restrict network access",
@@ -1124,7 +1218,7 @@
         "data-exfiltration": [
           "Restrict ListSecrets permissions to administrative roles only and deny it from application roles",
           "Use SCPs to deny secretsmanager:ReplicateSecretToRegions to unapproved regions",
-          "Enable CloudTrail data events and create EventBridge rules to alert on bulk GetSecretValue patterns",
+          "Alert via EventBridge on high-volume GetSecretValue and BatchGetSecretValue management events and on PutResourcePolicy changes that add external principals",
           "Scope rotation Lambda execution roles to only the specific secrets they manage"
         ],
         "privilege-escalation": [
@@ -1151,14 +1245,17 @@
         "data-exfiltration",
         "privilege-escalation"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "credential-theft": "Key policy misconfiguration allowing unauthorized Decrypt/GenerateDataKey, cross-account key grants, IAM policy permitting kms:* actions, envelope encryption key exposure through compromised data key caching",
-        "misconfiguration": "Key policy allowing kms:* to broad principals, missing key rotation, default key used instead of customer-managed keys, grants with overly permissive operations, cross-account access without conditions",
+        "misconfiguration": "Key policy allowing kms:* to broad principals, missing key rotation, default key used instead of customer-managed keys, grants with overly permissive operations, no guard on ScheduleKeyDeletion, DisableKey or DeleteImportedKeyMaterial (immediate for imported keys), letting an attacker make encrypted data unrecoverable",
         "excessive-permissions": "Key policies with kms:* allowed, IAM policies granting kms:Decrypt on all keys, key administrators also having usage permissions, grants not revoked after temporary access",
         "unauthorized-access": "KMS API access from untrusted networks, missing VPC endpoint for KMS, compromised credentials used to decrypt data from external locations, key policy allowing access to overly broad principals",
         "audit-logging-bypass": "CloudTrail management event logging disabled, trail event selectors excluding AWS KMS events (ExcludeManagementEventSources kms.amazonaws.com) so Decrypt and GenerateDataKey calls go unrecorded, trail stopped or deleted",
         "sensitive-data-exposure": "Data key plaintext cached in application memory, key metadata revealing encryption architecture, key aliases exposing resource naming conventions, decrypted data exposed through application-level logging",
-        "data-exfiltration": "Bulk decryption of encrypted data using compromised key access, cross-account key sharing enabling data decryption in attacker accounts, GenerateDataKeyWithoutPlaintext abuse for offline decryption",
+        "data-exfiltration": "Bulk Decrypt of encrypted data using compromised key access, key policy or CreateGrant adding an attacker-controlled account so data can be decrypted from outside, re-encrypting data keys under an external key the attacker controls",
         "privilege-escalation": "KMS key access enabling decryption of secrets stored in Secrets Manager/SSM, key grant creation for persistent access, key policy modification granting administrator access"
       },
       "threatMitigations": {
@@ -1172,7 +1269,7 @@
           "Enable automatic key rotation for all customer-managed symmetric KMS keys",
           "Use AWS Config rules kms-cmk-not-scheduled-for-deletion and cmk-backing-key-rotation-enabled for compliance",
           "Separate key administrator and key usage permissions across different IAM principals",
-          "Restrict key policies to specific IAM principals rather than allowing the root account full access"
+          "Use SCPs to deny kms:ScheduleKeyDeletion, kms:DisableKey and kms:DeleteImportedKeyMaterial outside break-glass roles, and require kms:ScheduleKeyDeletionPendingWindowInDays of 30"
         ],
         "excessive-permissions": [
           "Scope IAM policies to specific KMS key ARNs instead of granting kms:Decrypt on all keys (kms:*)",
@@ -1190,7 +1287,7 @@
           "Enable CloudTrail management events across all regions to capture KMS API calls (Decrypt, GenerateDataKey, CreateGrant)",
           "Configure CloudWatch alarms on StopLogging and DeleteTrail to detect audit trail tampering",
           "Use S3 Object Lock on CloudTrail log delivery buckets to prevent retroactive log deletion",
-          "Integrate KMS key usage events with Security Hub for centralized monitoring and alerting"
+          "Alert via EventBridge on KMS DisableKey, ScheduleKeyDeletion, PutKeyPolicy and CreateGrant events and on CloudTrail StopLogging"
         ],
         "sensitive-data-exposure": [
           "Avoid caching plaintext data keys in application memory beyond their immediate use",
@@ -1206,7 +1303,7 @@
         ],
         "privilege-escalation": [
           "Restrict kms:PutKeyPolicy and kms:CreateGrant permissions to dedicated key administrator roles only",
-          "Use SCPs to deny iam:CreatePolicy and kms:PutKeyPolicy combinations that enable self-escalation",
+          "Use SCPs to deny kms:PutKeyPolicy when kms:BypassPolicyLockoutSafetyCheck is true, and restrict iam:PutRolePolicy on roles named in key policies",
           "Enforce separation of duties between KMS key administrators and key users in key policies",
           "Enable CloudTrail alerts on CreateGrant, PutKeyPolicy, and ScheduleKeyDeletion for tamper detection"
         ]
@@ -1222,12 +1319,14 @@
         "privilege-escalation",
         "credential-theft",
         "excessive-permissions",
-        "misconfiguration"
+        "misconfiguration",
+        "account-takeover"
       ],
       "threatContext": {
-        "privilege-escalation": "IAM policy manipulation via iam:CreatePolicy, AssumeRole chain abuse, iam:PassRole to escalate through services",
+        "privilege-escalation": "iam:PassRole of a privileged role to Lambda, EC2, Glue or CloudFormation, iam:CreatePolicyVersion or SetDefaultPolicyVersion on an attached policy, iam:UpdateAssumeRolePolicy to backdoor a role trust, iam:CreateAccessKey or CreateLoginProfile on another user, AssumeRole chaining",
         "credential-theft": "Long-lived access keys exposed in code repositories, environment variables, or CI/CD logs",
-        "excessive-permissions": "Wildcard (*) actions in policies, overly broad resource ARNs, unused permissions accumulation"
+        "excessive-permissions": "Wildcard (*) actions in policies, overly broad resource ARNs, unused permissions accumulation",
+        "account-takeover": "Phishing of root or IAM user console passwords and TOTP codes (AiTM proxies of the AWS sign-in page), root password reset via a compromised account email inbox, IAM users with console passwords and no MFA left over from before SSO adoption"
       },
       "threatMitigations": {
         "privilege-escalation": [
@@ -1240,7 +1339,7 @@
           "Enforce MFA on all IAM user console and API access using IAM policy conditions (aws:MultiFactorAuthPresent)",
           "Use IAM roles with short-lived STS credentials instead of long-lived access keys wherever possible",
           "Enable AWS Config rule iam-user-unused-credentials-check to detect and disable stale access keys",
-          "Require access key rotation via organizational policies and alert on keys older than 90 days"
+          "Deactivate exposed access keys immediately, revoke active role sessions (AWSRevokeOlderSessions) and triage GuardDuty credential exfiltration findings"
         ],
         "excessive-permissions": [
           "Use IAM Access Analyzer policy generation to create least-privilege policies based on actual CloudTrail activity",
@@ -1253,6 +1352,12 @@
           "Use AWS Config rules to detect IAM misconfigurations (root access keys, missing MFA, overly permissive policies)",
           "Enforce SCPs at the organization level to prevent disabling of security guardrails",
           "Require tags on all IAM roles and policies using SCP tag enforcement for governance tracking"
+        ],
+        "account-takeover": [
+          "Enable centralized root access management in AWS Organizations and delete root credentials from member accounts",
+          "Register FIDO2 security keys or passkeys as MFA on the root user and on any IAM user that keeps a console password",
+          "Replace IAM user console logins with IAM Identity Center federation and remove login profiles flagged by iam-user-unused-credentials-check",
+          "Alert on root ConsoleLogin and failed IAM user sign-ins via CloudTrail and EventBridge, and act on GuardDuty Policy:IAMUser/RootCredentialUsage findings"
         ]
       }
     },
@@ -1279,7 +1384,8 @@
           "Enforce MFA (TOTP or SMS) for all user pool authentication flows",
           "Enable Cognito threat protection (Plus feature plan) in full-function mode for adaptive authentication and compromised credential detection",
           "Configure strong password policies with minimum length, complexity, and password history requirements",
-          "Implement account lockout via Lambda triggers after repeated failed authentication attempts"
+          "Implement account lockout via Lambda triggers after repeated failed authentication attempts",
+          "Offer passkey (WebAuthn) sign-in through managed login choice-based authentication"
         ],
         "token-theft": [
           "Configure short access token expiration (minutes to hours) and use refresh tokens with rotation enabled",
@@ -1317,19 +1423,23 @@
         "account-takeover",
         "privilege-escalation",
         "credential-theft",
-        "misconfiguration"
+        "misconfiguration",
+        "token-theft",
+        "excessive-permissions"
       ],
       "threatContext": {
         "account-takeover": "Phishing SSO portal credentials, session hijacking via stolen browser cookies, MFA bypass attacks",
-        "privilege-escalation": "Permission set abuse to access multiple accounts, cross-account role chaining",
-        "credential-theft": "SSO session token theft, SAML assertion interception, compromised external IdP credentials"
+        "privilege-escalation": "Delegated or management-account admins with sso:CreatePermissionSet, PutInlinePolicyToPermissionSet and CreateAccountAssignment granting themselves admin in any member account, IdP admins adding themselves to groups mapped to privileged permission sets via SCIM, cross-account role chaining",
+        "credential-theft": "SSO session token theft, SAML assertion interception, compromised external IdP credentials",
+        "token-theft": "Device code phishing of AWS CLI sign-ins, theft of cached SSO access and refresh tokens from ~/.aws/sso/cache on developer machines, stolen AWS access portal session cookies, role credentials that stay valid after the portal session is deleted",
+        "excessive-permissions": "Permission sets granting AdministratorAccess in every account, broad group-to-permission-set assignments synced from the IdP, AWSReservedSSO_* roles accumulating unused permissions"
       },
       "threatMitigations": {
         "account-takeover": [
           "Enforce MFA for all Identity Center users using FIDO2 security keys or authenticator apps",
           "Configure session duration policies with short maximum session lengths for privileged permission sets",
-          "Enable Identity Center event notifications and alert on sign-in from unusual locations or devices",
-          "Restrict the Identity Center portal URL to known corporate IP ranges using AWS WAF or network controls"
+          "Alert on Identity Center CloudTrail sign-in events (CredentialVerification, UserAuthentication) from unusual locations or devices",
+          "Enforce IP, device and risk conditions at the external IdP"
         ],
         "privilege-escalation": [
           "Apply least-privilege permission sets scoped to specific AWS accounts rather than granting broad organizational access",
@@ -1348,6 +1458,18 @@
           "Enforce automatic provisioning (SCIM) from the external IdP to prevent stale user accounts in Identity Center",
           "Restrict delegated administrator assignment to a single designated security account",
           "Enable CloudTrail organization trail to capture all Identity Center management API calls across accounts"
+        ],
+        "token-theft": [
+          "Use AWS CLI v2.22 or later for aws sso login, and do not use the --use-device-code flow",
+          "Shorten the AWS access portal session duration and permission set session durations",
+          "On compromise, delete the user's active sessions in Identity Center, then revoke active permission set role sessions before disabling the user",
+          "Require the external IdP to enforce compliant devices and phishing-resistant MFA before issuing SAML assertions to Identity Center"
+        ],
+        "excessive-permissions": [
+          "Assign narrowly scoped permission sets per account and per group instead of AdministratorAccess across the organization",
+          "Attach a permissions boundary to permission sets to cap the maximum permissions of the roles they provision",
+          "Review IAM Access Analyzer unused access findings for AWSReservedSSO_* roles and trim the permission sets behind them",
+          "Run periodic access reviews of account assignments and of the IdP groups mapped to privileged permission sets"
         ]
       }
     },
@@ -1378,7 +1500,8 @@
           "Restrict security group ingress rules to specific CIDR ranges and required ports only",
           "Use VPC Network Access Analyzer to identify unintended network paths",
           "Replace default VPC with custom VPCs using private subnets and explicit route tables",
-          "Enforce NACL deny rules for known malicious IP ranges and unused port ranges"
+          "Enforce NACL deny rules for known malicious IP ranges and unused port ranges",
+          "Enable VPC Block Public Access in bidirectional or ingress-only mode and grant exclusions only to VPCs or subnets that must be internet-facing"
         ],
         "unauthorized-access": [
           "Use VPC endpoints with restrictive endpoint policies for AWS service access",
@@ -1390,7 +1513,8 @@
           "Use VPC endpoint policies to restrict which S3 buckets and services are accessible",
           "Enable VPC Flow Logs and monitor egress traffic patterns with CloudWatch metric filters",
           "Restrict NAT Gateway routes to required subnets and monitor data transfer volumes via CloudWatch",
-          "Implement Transit Gateway route table segmentation to prevent cross-VPC data leakage"
+          "Implement Transit Gateway route table segmentation to prevent cross-VPC data leakage",
+          "Use Route 53 Resolver DNS Firewall with domain allow-lists to block DNS tunnelling and lookups to exfiltration domains from the VPC"
         ],
         "lateral-movement": [
           "Segment workloads across subnets with restrictive NACL and security group rules between tiers",
@@ -1480,11 +1604,8 @@
         "dos-attack",
         "sensitive-data-exposure"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
-        "cache-poisoning": "Host header injection to cache malicious responses, cache key manipulation via query strings or headers, poisoning through unkeyed request components (X-Forwarded-Host), response splitting attacks",
+        "cache-poisoning": "Unkeyed headers forwarded by an origin request policy (X-Forwarded-Host, X-Original-URL) and reflected into a cached JS or HTML response serve attacker script to every viewer of that edge (mass XSS, session theft). Web cache deception: path-pattern behaviours such as *.css cache /account/settings.css when the origin ignores the suffix, leaking other users' pages. A cache policy MinTTL above 0 overrides origin Cache-Control private/no-store.",
         "misconfiguration": "Missing Origin Access Control allowing direct S3 access, permissive CORS headers cached at edge, insecure TLS policies (TLSv1.0/1.1), geographic restrictions bypassed via VPN",
         "dos-attack": "Origin overload bypassing edge caching, Lambda@Edge function exhaustion, cache invalidation abuse for origin stress, large object requests to origin",
         "sensitive-data-exposure": "Cached responses containing user-specific data, access logs with PII in query strings, signed URL/cookie secrets in logs, error responses exposing origin details"
@@ -1492,8 +1613,9 @@
       "threatMitigations": {
         "cache-poisoning": [
           "Configure cache policies to include only necessary headers and query strings in cache keys",
-          "Enable CloudFront response headers policies to set strict Cache-Control directives",
-          "Associate AWS WAF to filter malicious Host headers and X-Forwarded-Host values"
+          "Send Cache-Control: private or no-store on personalised origin responses and set the cache policy MinTTL to 0",
+          "Associate AWS WAF to filter malicious Host headers and X-Forwarded-Host values",
+          "Forward only required headers in origin request policies, and add any header the origin reflects (X-Forwarded-Host, X-Original-URL) to the cache key or strip it"
         ],
         "misconfiguration": [
           "Use Origin Access Control (OAC) instead of legacy OAI to restrict direct S3 origin access",
@@ -1549,7 +1671,8 @@
           "Restrict route53:ChangeResourceRecordSets IAM permissions to specific hosted zone ARNs",
           "Enable DNSSEC signing to prevent DNS response spoofing and hijacking",
           "Use IAM condition keys to restrict Private Hosted Zone association to authorized VPCs",
-          "Enable CloudTrail logging for all Route 53 API calls and alert on record modifications"
+          "Enable CloudTrail logging for all Route 53 API calls and alert on record modifications",
+          "Enable transfer lock and auto-renew on domains registered with Route 53 and restrict route53domains:* permissions"
         ],
         "sensitive-data-exposure": [
           "Restrict access to Route 53 Resolver query logs using IAM policies and CloudWatch log group permissions",
@@ -1571,9 +1694,6 @@
         "network-misconfiguration",
         "unauthorized-access"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "Internet-facing ALB without WAF integration, deprecated SSL policies allowing weak ciphers, missing access logging, sticky sessions enabling session fixation, HTTP to HTTPS redirect disabled",
         "dos-attack": "Connection exhaustion via slow HTTP attacks, target group health check manipulation, cross-zone load balancing abuse for amplification, WebSocket connection flooding on ALB",
@@ -1666,12 +1786,12 @@
       "threatContext": {
         "message-tampering": "Message body modification via compromised producer credentials, dead-letter queue poisoning, message attribute manipulation to bypass processing logic",
         "unauthorized-access": "Queue policy allowing sqs:* to Principal *, cross-account SendMessage/ReceiveMessage without proper conditions, overly permissive IAM policies with wildcard queue ARNs",
-        "dos-attack": "Message flooding exhausting consumer capacity, large message payloads (up to 256KB) consuming bandwidth, visibility timeout manipulation causing reprocessing storms",
-        "misconfiguration": "Missing server-side encryption (SSE-SQS/SSE-KMS), overly long message retention exposing stale sensitive data, dead-letter queue not configured losing failed messages"
+        "dos-attack": "Message flooding exhausting consumer capacity and scaling Lambda consumers, large payloads up to 1 MiB, visibility timeout manipulation causing reprocessing storms",
+        "misconfiguration": "Customer-managed key not used where key-policy control is needed, overly long message retention exposing stale sensitive data, dead-letter queue not configured losing failed messages"
       },
       "threatMitigations": {
         "message-tampering": [
-          "Enable SSE-KMS encryption with customer-managed keys to protect message integrity at rest",
+          "Alert on SetQueueAttributes, AddPermission and RemovePermission CloudTrail events that change queue policies",
           "Restrict sqs:SendMessage permissions to specific producer IAM roles using aws:SourceArn and aws:SourceAccount conditions",
           "Implement message signature validation in consumers using HMAC or digital signatures in message attributes",
           "Configure dead-letter queue redrive policies to isolate and inspect tampered or malformed messages"
@@ -1684,7 +1804,7 @@
         ],
         "dos-attack": [
           "Configure dead-letter queues with maxReceiveCount thresholds to prevent infinite reprocessing loops",
-          "Use SQS FIFO queues with content-based deduplication to reject duplicate message flooding",
+          "Set the Lambda event source mapping maximum concurrency and AWS Budgets alerts",
           "Implement consumer-side rate limiting and circuit breakers to handle unexpected message volume spikes",
           "Set appropriate visibility timeout values to prevent message reprocessing storms"
         ],
@@ -1706,18 +1826,22 @@
         "message-tampering",
         "unauthorized-access",
         "misconfiguration",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "dos-attack",
+        "data-exfiltration"
       ],
       "threatContext": {
         "message-tampering": "Message injection via compromised publisher credentials, SMS/email notification spoofing through topic abuse, FIFO topic message ordering manipulation",
         "unauthorized-access": "Topic policy with sns:Publish to Principal *, subscription confirmation hijacking via HTTP endpoints, cross-account subscription without proper conditions",
         "misconfiguration": "HTTP subscriptions without HTTPS enforcement, missing topic encryption, raw message delivery exposing message structure, overly permissive delivery retry policies",
-        "sensitive-data-exposure": "PII in SMS/email notifications, message attributes containing sensitive data, CloudWatch Logs subscription filter capturing sensitive messages"
+        "sensitive-data-exposure": "PII in SMS/email notifications, message attributes containing sensitive data, CloudWatch Logs subscription filter capturing sensitive messages",
+        "dos-attack": "SMS pumping (artificially inflated traffic) through app flows such as sign-up OTP that publish SMS via SNS, running up toll-fraud charges; Publish floods to topics with many fan-out subscriptions multiplying downstream load",
+        "data-exfiltration": "Attacker with sns:Subscribe adds an email, HTTPS, SQS or Lambda endpoint in their own account to a topic, silently receiving a copy of every message published to it"
       },
       "threatMitigations": {
         "message-tampering": [
           "Restrict sns:Publish permissions to specific publisher IAM roles using aws:SourceArn conditions",
-          "Enable SSE-KMS encryption on SNS topics to protect message integrity at rest",
+          "Alert on SetTopicAttributes, AddPermission and RemovePermission CloudTrail events that change who can publish to a topic",
           "Use SNS message signing with SignatureVersion 2 to verify message authenticity in HTTP/S subscribers",
           "Configure subscription filter policies to reject unexpected message attributes or formats"
         ],
@@ -1734,10 +1858,21 @@
           "Configure delivery status logging to CloudWatch for monitoring failed message deliveries"
         ],
         "sensitive-data-exposure": [
-          "Enable SSE-KMS encryption on topics handling sensitive data to protect messages in transit within SNS",
+          "Enable SSE-KMS with a customer-managed key on topics handling sensitive data",
           "Avoid sending PII or secrets in SMS/email notifications by using references or links instead of raw data",
           "Configure message data protection policies on SNS topics to detect and redact sensitive data patterns",
           "Restrict CloudWatch Logs access for SNS delivery status logs containing message metadata"
+        ],
+        "dos-attack": [
+          "Set the SNS MonthlySpendLimit for SMS and an End User Messaging enforced spend limit",
+          "Apply an AWS End User Messaging protect configuration as the account default that blocks SMS to countries you do not serve",
+          "Rate-limit and CAPTCHA-protect application flows that trigger SMS, and restrict sns:Publish to phone numbers to backend roles",
+          "Alarm on the SMSMonthToDateSpentUSD metric and on Publish volume per topic"
+        ],
+        "data-exfiltration": [
+          "Restrict sns:Subscribe in topic policies to approved endpoints with sns:Protocol and sns:Endpoint conditions",
+          "Deny Subscribe from principals outside your organisation using aws:PrincipalOrgID conditions in topic policies",
+          "Alert on Subscribe and ConfirmSubscription CloudTrail events that add endpoints or accounts outside the approved list"
         ]
       }
     },
@@ -1764,13 +1899,13 @@
           "Restrict events:PutEvents permissions to specific IAM roles using aws:SourceArn and aws:SourceAccount conditions",
           "Define strict event patterns on rules to match only expected source, detail-type, and detail fields",
           "Validate event payloads in target Lambda functions or Step Functions before processing",
-          "Use EventBridge Schema Registry to enforce schema validation on incoming events"
+          "Validate events against registry schemas in producers or via API Gateway request validation"
         ],
         "misconfiguration": [
           "Restrict event bus resource policies to specific AWS accounts and principals with explicit Deny for unauthorized PutEvents",
           "Set archive retention periods to the minimum required duration to limit historical event exposure",
           "Use AWS Config rules to detect event buses with overly permissive resource policies",
-          "Configure CloudTrail management events to audit all PutEvents, CreateRule, and PutTargets API calls"
+          "Enable CloudTrail data events for AWS::Events::EventBus to log PutEvents, and alert on CreateRule, PutTargets and PutPermission events"
         ],
         "unauthorized-access": [
           "Configure event bus resource policies with explicit conditions for aws:PrincipalOrgID or aws:SourceAccount",
@@ -1796,13 +1931,15 @@
         "stream-hijacking",
         "unauthorized-access",
         "data-exfiltration",
-        "misconfiguration"
+        "misconfiguration",
+        "dos-attack"
       ],
       "threatContext": {
         "stream-hijacking": "Consumer application impersonation via stolen enhanced fan-out credentials, shard iterator manipulation for selective data interception, KCL checkpoint poisoning causing data replay",
         "unauthorized-access": "Stream policy allowing kinesis:* to overly broad principals, GetRecords without proper shard-level authorization, Firehose delivery stream credential exposure",
         "data-exfiltration": "Firehose delivery to attacker-controlled S3/Redshift/Elasticsearch, GetRecords bulk extraction via shard iterator, enhanced fan-out for real-time data theft",
-        "misconfiguration": "Missing server-side encryption, overly long retention period exposing historical data, Firehose transformation Lambda with excessive permissions, missing CloudWatch logging"
+        "misconfiguration": "Missing server-side encryption, overly long retention period exposing historical data, Firehose transformation Lambda with excessive permissions, missing CloudWatch logging",
+        "dos-attack": "Rogue or compromised producer exhausting shard write capacity, on-demand streams scaling up cost under flood, consumers starved by GetRecords limits"
       },
       "threatMitigations": {
         "stream-hijacking": [
@@ -1828,6 +1965,11 @@
           "Set data retention periods to the minimum required duration to limit exposure of historical stream data",
           "Configure enhanced monitoring and CloudWatch alarms for stream-level metrics (ReadProvisionedThroughputExceeded, WriteProvisionedThroughputExceeded)",
           "Use AWS Config rules to detect Kinesis streams without encryption enabled"
+        ],
+        "dos-attack": [
+          "Restrict kinesis:PutRecord and kinesis:PutRecords to known producer roles",
+          "Alarm on WriteProvisionedThroughputExceeded and ReadProvisionedThroughputExceeded, and set AWS Budgets alerts for on-demand streams",
+          "Use high-cardinality partition keys, and give critical consumers enhanced fan-out"
         ]
       }
     },
@@ -1872,7 +2014,8 @@
           "Use InputPath, OutputPath, and ResultPath filters to exclude sensitive fields from state input/output",
           "Store sensitive values in Secrets Manager or Parameter Store and pass only reference ARNs between states",
           "Enable KMS encryption on CloudWatch log groups receiving Step Functions execution logs",
-          "Disable execution data logging for Express workflows handling PII or set log level to ERROR only"
+          "Disable execution data logging for Express workflows handling PII or set log level to ERROR only",
+          "Enable Step Functions customer managed KMS key encryption for state machine definitions and execution history"
         ]
       }
     },
@@ -1885,17 +2028,19 @@
       "threatIds": [
         "log-tampering",
         "misconfiguration",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "audit-logging-bypass"
       ],
       "threatContext": {
         "log-tampering": "Log group deletion via logs:DeleteLogGroup, log stream manipulation, retention policy reduction to accelerate log deletion, PutRetentionPolicy abuse",
         "misconfiguration": "Missing log encryption with KMS, overly permissive resource policies allowing cross-account log access, disabled log stream creation, missing metric filters for security events",
-        "sensitive-data-exposure": "PII/credentials in application logs, CloudWatch Logs Insights queries exposing sensitive data, unmasked sensitive fields in custom metrics, dashboard snapshots containing confidential data"
+        "sensitive-data-exposure": "PII/credentials in application logs, CloudWatch Logs Insights queries exposing sensitive data, unmasked sensitive fields in custom metrics, dashboard snapshots containing confidential data",
+        "audit-logging-bypass": "Log group subscription filters deleted to cut SIEM forwarding, CloudWatch agent stopped or its config edited on instances, vended-log delivery sources removed, metric filters and alarms for CloudTrail events deleted or disabled"
       },
       "threatMitigations": {
         "log-tampering": [
           "Restrict logs:DeleteLogGroup and logs:PutRetentionPolicy IAM permissions to a dedicated security account only",
-          "Enable CloudWatch Logs resource policies to deny log group deletion from non-administrative principals",
+          "Enable log group deletion protection on security-critical log groups and deny logs:DeleteLogGroup, PutRetentionPolicy and DeleteSubscriptionFilter via SCP",
           "Configure CloudTrail to monitor and alert on DeleteLogGroup, DeleteLogStream, and PutRetentionPolicy API calls",
           "Use cross-account log delivery to a centralized security account with immutable retention policies"
         ],
@@ -1910,6 +2055,12 @@
           "Configure log group subscriptions to filter out sensitive data before forwarding to downstream consumers",
           "Restrict CloudWatch Logs Insights query access using IAM policies scoped to specific log group ARNs",
           "Encrypt all log groups with KMS and restrict key access to authorized log consumers only"
+        ],
+        "audit-logging-bypass": [
+          "Use SCPs to deny logs:DeleteSubscriptionFilter, logs:DeleteLogGroup and logs:PutRetentionPolicy on central log groups to all but break-glass roles",
+          "Alarm on drops in the IncomingLogEvents or IncomingBytes metrics per log group using CloudWatch anomaly detection",
+          "Alert via EventBridge on DeleteSubscriptionFilter, PutSubscriptionFilter, DeleteMetricFilter and DeleteAlarms CloudTrail events",
+          "Deploy and enforce the CloudWatch agent configuration from SSM Parameter Store with State Manager"
         ]
       }
     },
@@ -1925,8 +2076,8 @@
         "misconfiguration"
       ],
       "threatContext": {
-        "log-tampering": "Trail deletion via cloudtrail:DeleteTrail, S3 bucket log deletion, log file integrity validation disabled allowing undetected modification",
-        "audit-logging-bypass": "Trail disabled via StopLogging, event selectors excluding sensitive API calls, data events not captured for S3/Lambda, management events filtered",
+        "log-tampering": "Trail deletion via cloudtrail:DeleteTrail, S3 lifecycle rule added to expire log objects early, log objects deleted from a bucket without Object Lock, digest file validation disabled",
+        "audit-logging-bypass": "Trail stopped via StopLogging, PutEventSelectors or PutInsightSelectors used to exclude management or data events, organization trail removed by the management account, trail redirected via UpdateTrail to an attacker-controlled bucket",
         "misconfiguration": "Single-region trail missing multi-region events, S3 bucket without versioning/MFA delete, missing CloudWatch Logs integration, organization trail not enabled"
       },
       "threatMitigations": {
@@ -1962,7 +2113,7 @@
       ],
       "threatContext": {
         "misconfiguration": "Protection plans disabled (S3, EKS, Malware, RDS), trusted IP lists overly broad suppressing legitimate alerts, auto-archive rules hiding critical findings, missing delegated administrator",
-        "audit-logging-bypass": "Detector disabled via UpdateDetector, findings suppressed through filter rules, member account detector suspension, publishing destination removed to prevent SIEM integration"
+        "audit-logging-bypass": "Detector disabled or suspended via UpdateDetector, trusted IP list (IPSet) added to whitelist attacker infrastructure (Pacu guardduty__whitelist_ip), suppression filters auto-archiving findings, member disassociation, publishing destination removed"
       },
       "threatMitigations": {
         "misconfiguration": [
@@ -1991,7 +2142,7 @@
       ],
       "threatContext": {
         "misconfiguration": "Security standards disabled (CIS, PCI-DSS, AWS Foundational), integrations not enabled for GuardDuty/Inspector, cross-region aggregation missing, automated response actions not configured",
-        "audit-logging-bypass": "Findings workflow status manipulation to suppress alerts, batch updates archiving critical findings, disabled integrations preventing finding ingestion, member account disassociation"
+        "audit-logging-bypass": "Automation rules created to set matching findings to SUPPRESSED or lower their severity, BatchUpdateFindings archiving critical findings, product integrations disabled to stop finding ingestion, member account disassociation"
       },
       "threatMitigations": {
         "misconfiguration": [
@@ -2004,7 +2155,8 @@
           "Use SCPs to deny securityhub:DisableSecurityHub and securityhub:DisassociateMembers across all member accounts",
           "Restrict securityhub:BatchUpdateFindings IAM permissions to prevent unauthorized workflow status changes on findings",
           "Configure EventBridge rules to forward all Security Hub findings to a centralized SIEM in a dedicated security account",
-          "Create CloudWatch Alarms on CloudTrail events for DisableSecurityHub, BatchUpdateFindings, and DeleteInsight API calls"
+          "Create CloudWatch Alarms on CloudTrail events for DisableSecurityHub, BatchUpdateFindings, and DeleteInsight API calls",
+          "Alert on CreateAutomationRule, UpdateAutomationRules and BatchUpdateFindings calls that set workflow status to SUPPRESSED"
         ]
       }
     },
@@ -2032,7 +2184,8 @@
         "credential-theft": "Job execution role credential theft, environment variable exposure, secrets in job definitions",
         "supply-chain-attack": "Malicious container images in job definitions, compromised base images, tampered job scripts",
         "lateral-movement": "Compromised batch job containers pivoting to other VPC resources, compute environment instances used as jump points within the network",
-        "data-exfiltration": "Job output redirection to attacker-controlled S3 buckets, batch job egress to external endpoints, processed data theft via compromised job containers"
+        "data-exfiltration": "Job output redirection to attacker-controlled S3 buckets, batch job egress to external endpoints, processed data theft via compromised job containers",
+        "batch-job-tampering": "Registering a new job definition revision with a substituted image, command or privileged flag, container overrides at SubmitJob changing command and environment, cryptomining jobs submitted with stolen batch:SubmitJob rights"
       },
       "threatMitigations": {
         "batch-job-tampering": [
@@ -2053,7 +2206,7 @@
         "unauthorized-access": [
           "Restrict batch:SubmitJob and batch:RegisterJobDefinition permissions to authorized orchestration roles only",
           "Use VPC endpoints with restrictive endpoint policies for Batch API access",
-          "Enable CloudTrail data events to monitor and alert on unauthorized job submissions"
+          "Alert on SubmitJob and RegisterJobDefinition CloudTrail management events from unexpected principals"
         ],
         "privilege-escalation": [
           "Restrict iam:PassRole permissions so only authorized principals can assign execution roles to job definitions",
@@ -2111,7 +2264,7 @@
         "credential-theft": "Glue connection credentials stored in Data Catalog, IAM role credential extraction from job execution environment, JDBC connection strings with embedded passwords",
         "sensitive-data-exposure": "PII exposure in Glue Data Catalog metadata, sensitive data in job logs, unencrypted data in job bookmarks and temporary storage",
         "data-exfiltration": "Job output redirection to external S3 buckets, JDBC connections to attacker databases, crawler results exposing data schema for targeted extraction",
-        "misconfiguration": "Public Data Catalog access, development endpoints with SSH access enabled, missing encryption for job artifacts, VPC endpoints misconfiguration",
+        "misconfiguration": "Data Catalog resource policies granting broad cross-account access, interactive sessions or legacy development endpoints running under privileged roles, jobs without a security configuration (unencrypted S3 output, logs and bookmarks), JDBC connections without SSL",
         "excessive-permissions": "IAM roles with s3:*, glue:*, or lakeformation:* permissions, ability to modify any crawler or job definition, cross-account access grants"
       },
       "threatMitigations": {
@@ -2119,7 +2272,7 @@
           "Restrict glue:UpdateJob and glue:CreateJob IAM permissions to authorized data engineering roles only",
           "Enable CloudTrail logging for Glue API calls and alert on job script or crawler definition changes",
           "Restrict iam:PassRole on Glue service roles so only approved roles can be attached to jobs, dev endpoints and interactive sessions",
-          "Store ETL scripts in S3 with versioning and object lock to prevent unauthorized modification"
+          "Restrict s3:PutObject on the job script location to the deployment role and alert on script changes using CloudTrail S3 data events"
         ],
         "credential-theft": [
           "Use Glue connections with Secrets Manager integration instead of embedding credentials in connection properties",
@@ -2163,16 +2316,17 @@
         "audit-logging-bypass"
       ],
       "threatContext": {
-        "data-classification-evasion": "Data encoding/encryption to evade custom data identifiers, file format manipulation to bypass scanning, bucket exclusions hiding sensitive data, allow lists suppressing legitimate detections",
+        "data-classification-evasion": "Objects Macie cannot analyse (SSE-C, KMS keys its role cannot use, unsupported or oversized files) or that automated discovery never samples, data encoded to evade custom identifiers, bucket exclusions and allow lists",
         "misconfiguration": "Automated sensitive data discovery disabled, classification jobs not scheduled, custom data identifiers missing organization-specific patterns, S3 buckets excluded from analysis",
-        "sensitive-data-exposure": "Macie findings revealing sensitive data locations, sample findings containing actual PII, discovery results accessible to unauthorized users",
-        "audit-logging-bypass": "Macie disabled via UpdateMacieSession, classification jobs cancelled, findings suppressed through suppression rules, publishing destination removed"
+        "sensitive-data-exposure": "Macie sensitive data samples retrieval revealing real PII from S3 objects, findings and discovery results listing exact sensitive data locations, discovery results bucket readable by unauthorized users",
+        "audit-logging-bypass": "Macie disabled or paused via DisableMacie/UpdateMacieSession, classification jobs cancelled via UpdateClassificationJob, findings filters set to auto-archive (suppression rules), findings publication to Security Hub turned off"
       },
       "threatMitigations": {
         "data-classification-evasion": [
+          "Review Macie unclassifiable-object statistics and bucket coverage issues, and grant Macie kms:Decrypt for SSE-KMS buckets",
           "Configure custom data identifiers with regex patterns specific to organization data formats (employee IDs, internal codes)",
           "Minimize bucket exclusion lists and review them regularly to ensure sensitive buckets are not inadvertently excluded",
-          "Enable automated sensitive data discovery to continuously scan new and modified S3 objects across all buckets",
+          "Use automated sensitive data discovery for broad sampled coverage and run full classification jobs on buckets holding regulated data",
           "Review and restrict Macie allow lists to prevent legitimate sensitive data detections from being suppressed"
         ],
         "misconfiguration": [
@@ -2184,12 +2338,12 @@
         "sensitive-data-exposure": [
           "Restrict access to Macie findings and discovery results using IAM policies scoped to the security team only",
           "Configure Macie to publish findings to Security Hub and EventBridge rather than granting direct Macie console access",
-          "Disable sample findings in production environments to prevent accidental exposure of real PII data",
+          "Disable retrieval of sensitive data samples, or restrict macie2:GetSensitiveDataOccurrences to named security analysts",
           "Encrypt Macie discovery results in the designated S3 bucket using customer-managed KMS keys"
         ],
         "audit-logging-bypass": [
           "Use SCPs to deny macie2:DisableMacie and macie2:UpdateMacieSession across all member accounts",
-          "Configure CloudTrail to monitor and alert on DisableMacie, UpdateMacieSession, and DeleteClassificationJob API calls",
+          "Configure CloudTrail metric filters and alarms for DisableMacie, UpdateMacieSession, UpdateClassificationJob and CreateFindingsFilter API calls",
           "Configure Macie publishing destinations to a centralized S3 bucket in the security account for finding persistence",
           "Review and minimize Macie suppression rules to prevent critical findings from being silently archived"
         ]
@@ -2207,7 +2361,8 @@
         "privilege-escalation",
         "lateral-movement",
         "misconfiguration",
-        "unauthorized-access"
+        "unauthorized-access",
+        "audit-logging-bypass"
       ],
       "threatContext": {
         "remote-command-execution": "Run Command abuse for arbitrary command execution (AWS-RunShellScript, AWS-RunPowerShellScript), Session Manager shell access, Automation runbook execution, State Manager association manipulation",
@@ -2215,7 +2370,8 @@
         "privilege-escalation": "SSM document with elevated permissions, Automation runbook assuming high-privilege roles, Run Command targeting instances with broader IAM roles",
         "lateral-movement": "Session Manager tunneling to other instances, Run Command execution across fleet, Distributor package deployment for persistence, Hybrid Activations pivoting to on-premises",
         "misconfiguration": "Session Manager without KMS encryption, Run Command output logged without sanitization, Parameter Store without encryption, overly permissive instance profiles for SSM Agent",
-        "unauthorized-access": "Overly permissive IAM policies for ssm:SendCommand, Session Manager access without proper authorization, Parameter Store path policies too broad"
+        "unauthorized-access": "Overly permissive IAM policies for ssm:SendCommand, Session Manager access without proper authorization, Parameter Store path policies too broad",
+        "audit-logging-bypass": "Session Manager port-forwarding and SSH sessions (AWS-StartPortForwardingSession, AWS-StartSSHSession) are not logged beyond the CloudTrail StartSession event, SSM-SessionManagerRunShell preferences edited to turn off S3/CloudWatch session logging, Run Command output logging omitted"
       },
       "threatMitigations": {
         "remote-command-execution": [
@@ -2253,6 +2409,11 @@
           "Restrict Parameter Store access using hierarchical resource ARNs (arn:aws:ssm:*:*:parameter/app/prod/*)",
           "Enforce VPC endpoint policies for SSM to restrict API access to authorized VPCs only",
           "Enable CloudTrail monitoring and alerting for SendCommand, StartSession, and GetParameter API calls"
+        ],
+        "audit-logging-bypass": [
+          "Restrict ssm:StartSession to the logged SSM-SessionManagerRunShell document with ssm:SessionDocumentAccessCheck, denying port-forwarding and SSH session documents",
+          "Deny ssm:UpdateDocument and ssm:UpdateDocumentDefaultVersion on SSM-SessionManagerRunShell via SCP",
+          "Alert on CloudTrail StartSession events using port-forwarding or SSH documents and on Session Manager preference changes"
         ]
       }
     },
@@ -2288,7 +2449,7 @@
           "Regularly audit Lake Formation permissions using GetEffectivePermissionsForPath API"
         ],
         "data-exfiltration": [
-          "Restrict cross-account data sharing to specific trusted AWS accounts using Lake Formation resource links",
+          "Restrict lakeformation:GrantPermissions to data steward roles and alert on CloudTrail grant events naming principals in external accounts",
           "Configure S3 bucket policies with VPC endpoint conditions on registered data locations",
           "Enable CloudTrail data events for Lake Formation to monitor GetDataAccess and cross-account sharing operations"
         ],
@@ -2366,7 +2527,8 @@
         "broken-authentication",
         "excessive-permissions",
         "dos-attack",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "unauthorized-access"
       ],
       "connectionSecurity": {
         "enforcesEncryption": true
@@ -2377,7 +2539,8 @@
         "broken-authentication": "API key authentication without expiration rotation, overly permissive Cognito user pool authorization, missing pipeline resolver authorization checks",
         "excessive-permissions": "Data source IAM roles with broad DynamoDB/Lambda access, cross-account data source access without proper boundaries",
         "dos-attack": "Subscription flooding via WebSocket connections, resolver timeout exploitation, complex query construction causing Lambda cold starts",
-        "sensitive-data-exposure": "CloudWatch Logs capturing full GraphQL queries and responses with sensitive data, resolver logging exposing internal data structures, error responses revealing DynamoDB/Lambda internals, subscription data visible in real-time"
+        "sensitive-data-exposure": "CloudWatch Logs capturing full GraphQL queries and responses with sensitive data, resolver logging exposing internal data structures, error responses revealing DynamoDB/Lambda internals, subscription data visible in real-time",
+        "unauthorized-access": "Default authorization mode API_KEY with keys embedded in client apps, fields without auth directives inheriting a permissive default mode, Lambda authorizers returning broad resolverContext with long TTL caching, Cognito identity pool unauthenticated roles granting appsync:GraphQL"
       },
       "threatMitigations": {
         "graphql-abuse": [
@@ -2387,7 +2550,7 @@
           "Configure resolver-level rate limiting using AWS WAF associated with the AppSync API"
         ],
         "query-injection": [
-          "Use parameterized VTL resolver templates with utility functions like \\.dynamodb.toDynamoDB() for safe input handling",
+          "Use parameterized resolver templates with $util.dynamodb.toDynamoDB() (VTL) or util.dynamodb helpers (JS resolvers) for safe input handling",
           "Validate and sanitize all resolver input arguments using VTL request mapping template validation logic",
           "Enforce strict GraphQL input types with non-nullable fields and custom scalars for data validation",
           "Associate AWS WAF with AppSync APIs to filter SQL injection and command injection patterns"
@@ -2396,7 +2559,7 @@
           "Use Cognito user pool or IAM authorization as the default authentication mode instead of API keys",
           "Configure API key expiration to a maximum of 365 days and implement automated key rotation",
           "Enforce per-resolver authorization checks using pipeline resolvers with authentication validation steps",
-          "Configure multiple authentication modes with @aws_auth directives for field-level access control"
+          "Configure multiple authorization modes with @aws_cognito_user_pools, @aws_iam, @aws_oidc or @aws_lambda directives for field-level access control"
         ],
         "excessive-permissions": [
           "Scope data source IAM roles to specific DynamoDB table ARNs and required actions only",
@@ -2407,14 +2570,20 @@
         "dos-attack": [
           "Associate AWS WAF with AppSync APIs and configure rate-based rules per IP address",
           "Set appropriate resolver timeout values to prevent long-running queries from consuming resources",
-          "Configure subscription connection limits to prevent WebSocket connection flooding",
+          "Set queryDepthLimit and resolverCountLimit on the API",
           "Implement query complexity analysis in pipeline resolvers to reject expensive operations"
         ],
         "sensitive-data-exposure": [
           "Disable resolver-level logging in production or set log field level to ERROR to avoid capturing full responses",
           "Configure CloudWatch log group encryption with customer-managed KMS keys for AppSync logs",
           "Implement field-level resolver logic to redact sensitive fields based on caller authorization context",
-          "Use VPC endpoints for AppSync data sources to keep backend communication off the public internet"
+          "Use AppSync private APIs for internal consumers"
+        ],
+        "unauthorized-access": [
+          "Set Cognito user pools, OIDC or IAM as the default authorization mode and limit API_KEY mode to public read-only fields",
+          "Annotate every type and field with explicit auth directives instead of relying on the default authorization mode",
+          "Scope Cognito identity pool unauthenticated roles to deny or narrowly limit appsync:GraphQL",
+          "Associate AWS WAF with public APIs and use IP set rules to restrict administrative or partner operations"
         ]
       }
     },
@@ -2433,12 +2602,12 @@
       ],
       "threatContext": {
         "data-exfiltration": "Task configuration to sync data to attacker-controlled S3 buckets, scheduled task abuse for continuous exfiltration",
-        "hybrid-infrastructure-attack": "Agent compromise on-premises for pivoting, NFS/SMB location exploitation, VPC endpoint manipulation"
+        "hybrid-infrastructure-attack": "Agent VM local console default credentials (admin/password), agent compromise on-premises for pivoting, NFS/SMB/HDFS source location credentials stored for tasks, activation from untrusted networks"
       },
       "threatMitigations": {
         "data-exfiltration": [
           "Restrict datasync:CreateTask IAM permissions to prevent unauthorized task creation targeting external locations",
-          "Configure S3 destination bucket policies to only accept writes from authorized DataSync task execution roles",
+          "Deny s3:PutObject outside the organisation with aws:ResourceOrgID in an SCP or the DataSync role policy, and restrict datasync:CreateLocationObjectStorage",
           "Enable CloudTrail logging for all DataSync API calls and alert on task creation or location changes",
           "Use VPC endpoints for DataSync to prevent data transfer over the public internet"
         ],
@@ -2461,7 +2630,8 @@
         "hybrid-infrastructure-attack": [
           "Deploy DataSync agents in private subnets with restrictive security groups limiting management access",
           "Use VPC endpoints for DataSync agent communication to avoid exposing the agent to the public internet",
-          "Enforce NFS/SMB share authentication and restrict access to authorized DataSync agent IP addresses only"
+          "Enforce NFS/SMB share authentication and restrict access to authorized DataSync agent IP addresses only",
+          "Change the DataSync agent local console default password at first login and restrict hypervisor console access"
         ]
       }
     },
@@ -2479,6 +2649,9 @@
         "sensitive-data-exposure",
         "backup-exposure"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "query-injection": "Gremlin query injection via string concatenation, SPARQL injection in RDF queries, openCypher query manipulation",
         "unauthorized-access": "IAM database authentication bypass, public cluster endpoint exposure, security group misconfiguration allowing external access",
@@ -2488,7 +2661,7 @@
       },
       "threatMitigations": {
         "query-injection": [
-          "Use parameterized Gremlin queries via the Neptune Java driver or HTTP API to prevent query injection",
+          "Build Gremlin queries with GLV bytecode traversals and openCypher with the parameters field",
           "Validate and sanitize all user inputs before constructing SPARQL or openCypher queries",
           "Restrict Neptune query execution to read-only IAM roles for application accounts that do not need write access"
         ],
@@ -2496,7 +2669,7 @@
           "Enable IAM database authentication to replace password-based access with short-lived IAM credentials",
           "Disable public cluster endpoint access and restrict security groups to application subnets only",
           "Use VPC endpoints for Neptune API access to prevent exposure outside the VPC",
-          "Configure Neptune cluster parameter groups to enforce SSL connections"
+          "Make sure clients validate the server certificate rather than disabling TLS verification"
         ],
         "data-exfiltration": [
           "Restrict neptune-db:* IAM permissions to specific cluster resource ARNs and read-only actions",
@@ -2507,7 +2680,7 @@
           "Disable public accessibility on Neptune cluster instances via cluster configuration",
           "Enable Neptune audit logging to CloudWatch for query monitoring and anomaly detection",
           "Use AWS Config rules to detect Neptune clusters without encryption at rest or in-transit enforcement",
-          "Enforce SSL connections via Neptune cluster parameter group (neptune_enforce_ssl = 1)"
+          "Enable deletion protection on production Neptune clusters and alert on ModifyDBCluster calls that disable it"
         ],
         "sensitive-data-exposure": [
           "Enable encryption at rest using customer-managed KMS keys on Neptune clusters",
@@ -2535,7 +2708,7 @@
         "unauthorized-access"
       ],
       "threatContext": {
-        "misconfiguration": "Overly permissive stateful rule groups allowing unintended traffic, rule order misconfigurations causing bypass, missing domain list filtering, TLS inspection certificate mismanagement, default action set to pass instead of drop",
+        "misconfiguration": "Default stateful action left as pass or alert-only (Alert all/Alert established log but still forward), delete and policy-change protection disabled, TLS inspection configuration with stale or overly broad certificate scope, no Firewall Manager policy so VPC firewalls drift, missing domain list filtering",
         "network-misconfiguration": "Incorrect route table configuration bypassing firewall endpoints, asymmetric routing causing packet drops, missing firewall endpoints in availability zones, VPC attachment misconfigurations allowing traffic to circumvent inspection",
         "audit-logging-bypass": "Alert logs disabled or not sent to S3/CloudWatch, flow logs not configured, Suricata rule alerts suppressed, missing integration with Security Hub for centralized monitoring",
         "dos-attack": "Firewall capacity exhaustion via high packet rates, stateful rule evaluation overload, complex Suricata signature matching causing latency, connection table exhaustion",
@@ -2543,10 +2716,11 @@
       },
       "threatMitigations": {
         "misconfiguration": [
-          "Configure default stateful rule action to drop or alert instead of pass for unmatched traffic",
+          "Use strict rule ordering with the Drop established and Alert established default actions",
           "Use strict rule ordering in stateful rule groups to ensure deny rules are evaluated before allow rules",
           "Enable TLS inspection with properly managed certificates for encrypted traffic analysis",
-          "Use AWS Firewall Manager to enforce consistent Network Firewall policies across all VPCs"
+          "Use AWS Firewall Manager to enforce consistent Network Firewall policies across all VPCs",
+          "Enable delete protection, firewall policy change protection and subnet change protection, and restrict network-firewall:Update* and Delete* in IAM and SCPs"
         ],
         "network-misconfiguration": [
           "Verify route table configurations to ensure all ingress and egress traffic routes through firewall endpoints",
@@ -2612,7 +2786,7 @@
         ],
         "data-exfiltration": [
           "Restrict UNLOAD command IAM role permissions to specific approved S3 bucket ARNs only",
-          "Restrict rds:ModifyClusterSnapshotAttribute to prevent snapshot sharing to unauthorized accounts",
+          "Restrict redshift:AuthorizeSnapshotAccess and redshift:AuthorizeDataShare to approved administrators",
           "Enable Redshift audit logging to capture all user queries and detect bulk data extraction patterns",
           "Disable data sharing with external consumer clusters unless explicitly approved"
         ],
@@ -2656,6 +2830,9 @@
         "data-lake-governance-bypass",
         "excessive-permissions"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "sql-injection": "Presto/Trino SQL injection via unsanitized query parameters, CTAS (CREATE TABLE AS SELECT) injection, view definition manipulation, federated query injection against external data sources (DynamoDB, RDS, Redshift)",
         "unauthorized-access": "Overly permissive IAM policies with athena:* and s3:*, workgroup access control bypass, Lake Formation permission circumvention via direct S3 access, federated query connector credential exposure",
@@ -2675,13 +2852,13 @@
           "Use Athena workgroups with IAM-based access control to segregate query access by team or environment",
           "Enforce Lake Formation integration on Athena workgroups to apply fine-grained table and column permissions",
           "Restrict athena:StartQueryExecution IAM permissions to specific workgroup ARNs",
-          "Use VPC endpoints for Athena API access to prevent queries from outside the VPC"
+          "Use Athena VPC endpoints with an aws:SourceVpce condition in IAM or SCP policies to deny queries from outside the VPC"
         ],
         "data-exfiltration": [
           "Enforce workgroup-level output location settings to override client-specified result locations",
           "Restrict S3 bucket policies on query result locations to only allow access from authorized Athena workgroups",
           "Disable CTAS to unauthorized S3 locations by scoping s3:PutObject permissions on execution roles",
-          "Enable CloudTrail data events for Athena to monitor query patterns and detect bulk extraction"
+          "Alert on StartQueryExecution volume in CloudTrail and review query text with GetQueryExecution"
         ],
         "misconfiguration": [
           "Enable workgroup-enforced query result encryption using SSE-KMS with customer-managed keys",
@@ -2721,7 +2898,7 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "nosql-injection": "MongoDB-compatible query injection via $where operator, $regex exploitation, operator injection ($gt, $ne, $in), JavaScript execution in queries, aggregation pipeline manipulation, $lookup stage abuse for unauthorized collection access",
+        "nosql-injection": "Operator injection ($ne, $gt, $in, $regex) via unsanitized JSON bodies, $regex ReDoS, aggregation pipeline manipulation, $lookup stage abuse for unauthorized collection access; $where and server-side JavaScript are not supported",
         "unauthorized-access": "Publicly accessible cluster endpoints, security group allowing 0.0.0.0/0 on port 27017, TLS disabled allowing credential interception, weak authentication with default admin credentials, IAM database authentication bypass",
         "data-exfiltration": "Cluster snapshot sharing to external AWS accounts, snapshot export to S3 with overly permissive bucket policies, cross-region snapshot copy, mongodump via compromised application credentials, aggregation pipeline $out to external collections",
         "misconfiguration": "TLS enforcement disabled in cluster parameter group, audit logging not enabled to CloudWatch, storage encryption disabled, profiler not capturing slow queries, change streams not monitored for sensitive operations",
@@ -2784,7 +2961,7 @@
         "supply-chain-attack": "Malicious source artifacts injected via compromised CodeCommit/GitHub/S3 source actions, poisoned third-party custom actions from AWS Partner integrations, tampered build artifacts passed between pipeline stages, CodePipeline action provider impersonation via compromised OAuth connections",
         "injection-attack": "Pipeline definition manipulation via CloudFormation/CDK to inject malicious stages, action configuration parameter injection through compromised source repository buildspec files, environment variable manipulation in pipeline action configurations passed to downstream CodeBuild or Lambda invoke actions",
         "misconfiguration": "Cross-account pipeline roles with overly broad trust policies, S3 artifact bucket without encryption or restrictive bucket policy, missing manual approval actions before production deployment stages, pipeline webhook triggers without secret token validation, CloudWatch Events rules triggering pipelines on unvalidated source changes, pipeline execution history retaining sensitive deployment parameters",
-        "credential-theft": "Pipeline service role credential abuse for cross-service access (S3, CodeBuild, CodeDeploy, CloudFormation), OAuth token theft from GitHub/Bitbucket source connections stored in pipeline configuration, artifact store S3 bucket credentials enabling access to build outputs containing secrets, action role credentials exposed through CloudTrail logs",
+        "credential-theft": "Pipeline service role credential abuse for cross-service access (S3, CodeBuild, CodeDeploy, CloudFormation), OAuth tokens from GitHub version 1 source actions, artifact store S3 bucket objects containing secrets from build outputs, CodeConnections connections reused by other pipelines to read private repositories",
         "unauthorized-access": "Pipeline execution triggered by unauthorized source changes without branch protection, overly permissive IAM policies allowing codepipeline:StartPipelineExecution, cross-account pipeline access without proper external ID conditions, CodeStar Connections granting broad repository access beyond required scope",
         "excessive-permissions": "Pipeline service role with s3:*, codebuild:*, codedeploy:*, cloudformation:* wildcard permissions, action roles allowing deployment to any environment without stage-level restrictions, CodeStar Connection with full repository access instead of scoped to specific repos, artifact bucket policy granting access to all principals in the account",
         "privilege-escalation": "Pipeline service role with iam:PassRole allowing escalation through CloudFormation stack creation with admin roles, cross-account deployment roles enabling pivot to production accounts, CodePipeline action role chaining through Lambda invoke actions executing with higher-privilege execution roles, CloudFormation deploy action creating IAM resources with elevated permissions"
@@ -2792,14 +2969,14 @@
       "threatMitigations": {
         "supply-chain-attack": [
           "Enforce branch protection rules on source repositories to prevent unauthorized code merges triggering pipelines",
-          "Enable CodePipeline source action revision URL verification to validate artifact provenance",
+          "Sign build artifacts with AWS Signer and verify signatures before deployment",
           "Use CodeStar Connections with scoped repository access instead of broad OAuth tokens for source integrations",
           "Configure manual approval actions before production deployment stages to review artifact integrity"
         ],
         "injection-attack": [
           "Restrict codepipeline:UpdatePipeline IAM permissions to prevent unauthorized pipeline definition changes",
           "Validate pipeline definitions in version control using infrastructure-as-code reviews before deployment",
-          "Use pipeline variable constraints to prevent injection of malicious values through action configurations"
+          "Pass pipeline variables to CodeBuild as environment variables and quote them in buildspec commands rather than interpolating them into shell"
         ],
         "misconfiguration": [
           "Enable S3 artifact bucket encryption with customer-managed KMS keys and restrictive bucket policies",
@@ -2847,7 +3024,7 @@
       ],
       "threatContext": {
         "supply-chain-attack": "Malicious buildspec.yml commands in source repositories, compromised custom build images from ECR or Docker Hub, dependency confusion attacks via poisoned packages in CodeArtifact or public registries pulled during build, post-build artifact tampering before deployment stage consumption",
-        "injection-attack": "Command injection via unsanitized environment variables referenced in buildspec.yml shell commands, build trigger manipulation through webhook filter override, malicious commands injected through CodeBuild project environment variable overrides at build start, buildspec runtime-versions or install commands executing attacker-controlled scripts",
+        "injection-attack": "Command injection via unsanitized environment variables referenced in buildspec.yml shell commands, malicious commands injected through StartBuild buildspec or environment variable overrides, untrusted pull request builds passing webhook filters, install commands executing attacker-controlled scripts",
         "misconfiguration": "Build projects without VPC configuration exposing builds to internet, privileged mode enabled unnecessarily (required only for Docker-in-Docker), S3 build logs and artifacts without encryption, buildspec.yml with hardcoded credentials instead of Secrets Manager/Parameter Store references, source webhook filters too broad accepting builds from any branch or fork, build timeout set too high enabling cryptomining abuse, missing CloudWatch log group for build audit trails",
         "credential-theft": "CodeBuild service role credential theft via container metadata endpoint (http://169.254.170.2), Secrets Manager and SSM Parameter Store secrets exposed in build environment variables, source credentials (GitHub PAT, Bitbucket app password) stored at account level accessible to all projects, build logs containing leaked credentials from stdout/stderr, cached credentials in build layer images persisted to ECR",
         "unauthorized-access": "Build project start allowed via overly permissive IAM policies (codebuild:StartBuild), public build badge URLs leaking build status and project names, webhook triggers accepting builds from forked repositories without restriction, report groups accessible without proper IAM scoping, build output artifacts in S3 accessible beyond intended consumers",
@@ -2863,7 +3040,7 @@
         ],
         "injection-attack": [
           "Avoid referencing unsanitized environment variables directly in buildspec.yml shell commands",
-          "Restrict codebuild:StartBuild with overridesOnly to prevent environment variable injection at build time",
+          "Deny codebuild:StartBuild calls that override the buildspec or environment variables, using the codebuild:source.buildspec and environment variable condition keys",
           "Use CodeBuild project-level environment variables from Secrets Manager instead of plaintext overrides",
           "Configure webhook filters to reject builds from untrusted branches and forked repositories"
         ],
@@ -2882,7 +3059,8 @@
         "unauthorized-access": [
           "Restrict codebuild:StartBuild and codebuild:StartBuildBatch IAM permissions to authorized CI/CD roles only",
           "Disable public build badges to prevent project name and build status information disclosure",
-          "Configure webhook filters to only accept builds from specific branches and trusted repositories"
+          "Configure webhook filters to only accept builds from specific branches and trusted repositories",
+          "Anchor ACTOR_ACCOUNT_ID webhook filter patterns with ^ and $, and enable pull request comment approval"
         ],
         "excessive-permissions": [
           "Scope CodeBuild service roles to specific S3 bucket ARNs, ECR repository ARNs, and log group ARNs",
@@ -2913,13 +3091,13 @@
         "dos-attack"
       ],
       "threatContext": {
-        "stream-hijacking": "Consumer group hijacking by joining existing consumer groups with stolen credentials, topic partition reassignment manipulation, rogue consumer registration intercepting messages before legitimate consumers, producer impersonation injecting false records into topics",
+        "stream-hijacking": "Consumer group hijacking by joining existing groups with stolen credentials, offset resets via AlterConsumerGroupOffsets causing replay or skipped records, partition reassignment manipulation, rogue consumer registration reading messages before legitimate consumers",
         "unauthorized-access": "Broker authentication bypass via misconfigured SASL/SCRAM or mTLS settings, ZooKeeper (legacy) or KRaft controller access without authentication, topic ACL misconfiguration granting wildcard access, MSK Connect worker accessing unauthorized topics, unauthenticated bootstrap server connections",
         "data-exfiltration": "Bulk topic consumption via kafka-console-consumer with stolen credentials, MSK Connect sink connector redirecting data to attacker-controlled destinations, cross-account cluster replication abuse, topic mirroring to external Kafka clusters via MirrorMaker",
         "misconfiguration": "Topic ACLs allowing wildcard (*) produce/consume on all topics, PLAINTEXT listeners enabled alongside SASL/TLS, auto.create.topics.enable allowing unauthorized topic creation, missing encryption in transit between brokers (inter-broker TLS disabled), default replication factor of 1 risking data loss, MSK Serverless VPC endpoint policies too permissive, Schema Registry without authentication exposing schema definitions",
         "sensitive-data-exposure": "Unencrypted message payloads containing PII flowing through topics, Schema Registry exposing data structure and field names, broker logs capturing message metadata, Connect worker configurations containing database credentials in plaintext, consumer lag metrics revealing data processing patterns",
         "credential-theft": "SASL/SCRAM credentials extracted from AWS Secrets Manager via IAM policy abuse, mTLS client certificates stolen from poorly secured keystores, MSK Connect worker credential exposure in connector configurations, bootstrap broker credentials in application configuration files, IAM access credentials for MSK Serverless authentication",
-        "message-tampering": "Malicious producer injecting corrupted or falsified records into topics, Schema Registry poisoning by registering incompatible or malicious schemas causing consumer deserialization failures, idempotent producer ID spoofing, transaction coordinator manipulation causing duplicate or out-of-order message delivery",
+        "message-tampering": "Records forged into topics with stolen SASL/SCRAM, IAM or mTLS producer credentials, wildcard WRITE ACLs or kafka-cluster:WriteData on topic/* letting any client produce, Glue Schema Registry poisoning with malicious schema versions, MSK Connect source connectors altered",
         "dos-attack": "Broker resource exhaustion via large message production exceeding max.message.bytes, partition count explosion through automated topic creation, consumer group rebalance storms caused by rapid join/leave cycles, uncompressed message flooding consuming broker disk and network, ZooKeeper/KRaft session flooding disrupting cluster coordination"
       },
       "threatMitigations": {
@@ -2959,10 +3137,10 @@
           "Enforce least-privilege IAM policies for kafka-cluster:Connect and kafka-cluster:ReadData actions"
         ],
         "message-tampering": [
-          "Enable idempotent producers and configure Kafka ACLs to restrict IdempotentWrite to authorized producer principals",
-          "Enforce Schema Registry compatibility checks (BACKWARD, FORWARD, FULL) to prevent malicious schema registration",
+          "Alert on IAM policy changes that grant kafka-cluster:WriteData or AlterCluster on MSK, and review Kafka ACLs on a schedule",
+          "Restrict producer write access to Glue Schema Registry and alert on new schema versions outside CI/CD",
           "Restrict Kafka ACLs for producer write access on a per-topic basis to authorized principals only",
-          "Enable transactional producers with ACLs restricting TransactionalId usage to specific authenticated applications"
+          "Sign or MAC high-value records in producers and verify them in consumers before acting on them"
         ],
         "dos-attack": [
           "Configure broker-level quotas (producer_byte_rate, consumer_byte_rate) to limit per-client throughput",
@@ -2984,14 +3162,12 @@
         "unauthorized-access",
         "query-injection",
         "data-exfiltration",
-        "credential-theft",
-        "account-takeover"
+        "credential-theft"
       ],
       "threatContext": {
         "query-injection": "Email header injection via unsanitized From/To/Subject fields, HTML/JavaScript injection in email body templates, SMTP command injection through raw SendRawEmail API",
         "credential-theft": "SMTP credential theft (IAM-derived SMTP username/password), SES API access key exposure, compromised sending authorization delegate credentials",
         "sensitive-data-exposure": "PII in email bodies and attachments sent via SES, bounce/complaint notifications containing recipient data, email content logged in CloudWatch or S3 configuration sets",
-        "account-takeover": "Compromised SES SMTP credentials used for spam/phishing campaigns, domain spoofing via missing SPF/DKIM/DMARC, sending authorization abuse from delegate accounts",
         "data-exfiltration": "Bulk email address harvesting from SES suppression list, email content exfiltration via S3 receipt rule actions, redirect of received emails to attacker-controlled destinations"
       },
       "threatMitigations": {
@@ -3023,11 +3199,6 @@
           "Store SES SMTP credentials in Secrets Manager with automatic rotation instead of application configuration files",
           "Restrict SES SMTP credential usage to specific IP ranges using IAM policy conditions"
         ],
-        "account-takeover": [
-          "Configure DMARC with a reject policy (p=reject) and monitor aggregate/forensic reports for unauthorized sending",
-          "Enable SES account-level suppression list to automatically stop sending to addresses that bounce or complain",
-          "Use dedicated SES sending identities per application to isolate reputation and limit blast radius of compromise"
-        ],
         "data-exfiltration": [
           "Restrict access to SES suppression list APIs (ses:ListSuppressedDestinations) to administrative roles only",
           "Encrypt S3 buckets used as SES receipt rule destinations and restrict bucket policies to SES service principal only",
@@ -3051,17 +3222,18 @@
       ],
       "threatContext": {
         "credential-theft": "Private key export of AWS Private CA-issued or exportable public certificates via acm:ExportCertificate, ACM PCA private CA key compromise, certificate issuance from a compromised private CA for impersonation attacks",
-        "misconfiguration": "Expired certificates causing service outages, wildcard certificates over-scoped for unnecessary domains, DNS validation records left publicly accessible, missing certificate transparency logging",
+        "misconfiguration": "Imported certificates that ACM cannot renew expiring and causing outages, DNS validation CNAME records removed so managed renewal fails, wildcard certificates over-scoped for unneeded domains, no CAA records restricting which CAs may issue for the domain",
         "privilege-escalation": "ACM PCA abuse to issue certificates for unauthorized domains, cross-account certificate sharing enabling trust boundary violations, rogue CA certificate issuance for internal services",
         "sensitive-data-exposure": "Certificate details revealing internal infrastructure naming, private CA hierarchy exposure, domain enumeration via Certificate Transparency logs",
-        "audit-logging-bypass": "CloudTrail trail stopped, deleted or given event selectors that exclude ACM and ACM PCA management events, hiding certificate issuance, export and private CA changes"
+        "audit-logging-bypass": "CloudTrail trail stopped, deleted or given event selectors that exclude ACM and ACM PCA management events, hiding certificate issuance, export and private CA changes",
+        "unauthorized-access": "Principals with acm:RequestCertificate against a shared private CA or acm-pca:IssueCertificate issuing private certificates for internal hostnames they do not own, AWS RAM sharing of a private CA to untrusted accounts, ACM PCA CRL S3 bucket writable by unintended principals"
       },
       "threatMitigations": {
         "misconfiguration": [
           "Enable ACM certificate expiration monitoring via CloudWatch alarms and AWS Config rules",
           "Use ACM-managed certificates with automatic renewal instead of manually imported certificates where possible",
           "Restrict wildcard certificate usage and prefer specific FQDN certificates to limit exposure scope",
-          "Enable Certificate Transparency logging for all public certificates to detect unauthorized issuance"
+          "Publish CAA records that allow only approved CAs (e.g. amazon.com) to issue for your domains, and monitor CT logs for other issuance"
         ],
         "credential-theft": [
           "Restrict acm:ExportCertificate to designated roles, since it returns the private key of AWS Private CA and exportable public certificates",
@@ -3076,8 +3248,8 @@
         ],
         "privilege-escalation": [
           "Restrict ACM PCA certificate issuance to specific certificate templates using IssueCertificate templateArn conditions",
-          "Use ACM PCA access control policies to limit certificate subject names and SANs that can be issued",
-          "Implement approval workflows for ACM PCA subordinate CA creation using SCP restrictions"
+          "Apply X.509 name constraints for approved DNS namespaces to subordinate CA certificates in AWS Private CA",
+          "Use SCPs to deny acm-pca:CreateCertificateAuthority and subordinate CA issuance outside the dedicated PKI account"
         ],
         "sensitive-data-exposure": [
           "Use private DNS names for internal certificates to avoid revealing infrastructure details in Certificate Transparency logs",
@@ -3194,7 +3366,8 @@
         "data-exfiltration": [
           "Use SCPs to restrict which principals may create VPC endpoints and to approved service names only",
           "Enable VPC Flow Logs on endpoint subnets and monitor connections to unexpected endpoint services",
-          "Apply endpoint policies that limit which resources (e.g., specific S3 buckets) are reachable through the endpoint"
+          "Apply endpoint policies that limit which resources (e.g., specific S3 buckets) are reachable through the endpoint",
+          "Add aws:ResourceOrgID or aws:ResourceAccount conditions to endpoint policies"
         ],
         "excessive-permissions": [
           "Set endpoint service allowedPrincipals to explicit consumer IAM principals and review the list regularly",
@@ -3225,7 +3398,8 @@
         "data-exfiltration",
         "unauthorized-access",
         "misconfiguration",
-        "audit-logging-bypass"
+        "audit-logging-bypass",
+        "hybrid-infrastructure-attack"
       ],
       "connectionSecurity": {
         "internalOnly": true
@@ -3236,7 +3410,8 @@
         "data-exfiltration": "Route manipulation to steer spoke traffic through an attacker-controlled inspection VPC, egress via a shared services VPC to the internet without monitoring",
         "unauthorized-access": "Cross-account attachments accepted without review via Resource Access Manager (RAM), rogue account attaching a VPC to the shared Transit Gateway to reach internal networks",
         "misconfiguration": "Auto-accept shared attachments enabled, appliance-mode not enabled for stateful inspection causing asymmetric routing, all attachments in one route table instead of segmented domains",
-        "audit-logging-bypass": "Transit Gateway Flow Logs not enabled, CloudWatch/S3 flow-log delivery disabled or filtered, no monitoring of route-table changes"
+        "audit-logging-bypass": "Transit Gateway Flow Logs not enabled, CloudWatch/S3 flow-log delivery disabled or filtered, no monitoring of route-table changes",
+        "hybrid-infrastructure-attack": "VPN and Direct Connect gateway attachments propagating on-premises BGP routes into spoke route tables, a compromised on-premises router advertising more-specific prefixes to divert VPC traffic, an on-premises foothold reaching every spoke through one shared route table, Direct Connect traffic unencrypted unless MACsec or VPN overlay is used"
       },
       "threatMitigations": {
         "network-misconfiguration": [
@@ -3268,6 +3443,12 @@
           "Enable Transit Gateway Flow Logs to CloudWatch Logs and S3 for all attachments",
           "Alert on Transit Gateway route-table and association changes via CloudTrail and EventBridge",
           "Protect flow-log destinations with S3 Object Lock and restrictive resource policies"
+        ],
+        "hybrid-infrastructure-attack": [
+          "Associate VPN and Direct Connect attachments with a dedicated route table and, instead of propagating them into spoke tables, add static or prefix-list routes for approved on-premises ranges",
+          "Encrypt hybrid traffic with Site-to-Site VPN (including private IP VPN over Direct Connect) or MACsec on dedicated Direct Connect connections",
+          "Route on-premises to VPC traffic through an inspection VPC running Network Firewall with appliance mode on the attachment",
+          "Alert via CloudTrail and EventBridge on new VPN or Direct Connect gateway attachments and on route-table propagation changes"
         ]
       }
     }

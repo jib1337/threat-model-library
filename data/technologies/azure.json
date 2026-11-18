@@ -19,13 +19,15 @@
         "credential-theft",
         "lateral-movement",
         "unpatched-vulnerabilities",
-        "ssrf-attack"
+        "ssrf-attack",
+        "remote-command-execution"
       ],
       "threatContext": {
         "credential-theft": "Managed Identity token theft via Azure IMDS (http://169.254.169.254), VM extension credential exposure",
         "lateral-movement": "VNet-based pivoting, RDP/SSH lateral movement between VMs, Azure Bastion session hijacking",
         "unpatched-vulnerabilities": "OS-level CVEs, unpatched VM images, outdated VM extensions and agents",
-        "ssrf-attack": "SSRF to Azure Instance Metadata Service (http://169.254.169.254/metadata/) for Managed Identity token theft, internal VNet service discovery"
+        "ssrf-attack": "SSRF to Azure IMDS (http://169.254.169.254/metadata/) needs the Metadata: true header and is rejected when X-Forwarded-For is present, so Managed Identity token theft requires header injection or full request control, and Metadata Security Protocol in enforce mode blocks it from non-allowlisted processes; internal VNet service discovery via SSRF",
+        "remote-command-execution": "Action and managed Run Command (Microsoft.Compute/virtualMachines/runCommand/action, runCommands/write) and Custom Script Extension (extensions/write) executing as SYSTEM/root for any principal with VM Contributor, VM Agent abuse via WireServer, malicious extensions"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -44,7 +46,7 @@
           "Enable Microsoft Defender for Endpoint integration via Defender for Servers for real-time malware detection",
           "Use Azure Update Manager for automated OS and application patching",
           "Restrict outbound traffic with NSGs and Azure Firewall to limit command-and-control communication",
-          "Deploy VM Application extensions from a curated gallery to prevent unauthorized software installation"
+          "Protect VM backups with an immutable Recovery Services vault and soft delete, and keep a tested isolate-and-rebuild procedure for infected VMs"
         ],
         "data-exfiltration": [
           "Enable VNet Flow Logs and Traffic Analytics to detect unusual outbound data transfers",
@@ -62,10 +64,10 @@
           "Enable Azure DDoS Protection Standard on the VNet hosting the VMs",
           "Use Virtual Machine Scale Sets with autoscaling to absorb traffic spikes",
           "Place VMs behind Azure Load Balancer or Application Gateway with WAF enabled",
-          "Configure NSG rules to rate-limit inbound connections on exposed ports"
+          "Apply Application Gateway or Front Door WAF rate-limit rules to exposed web endpoints"
         ],
         "credential-theft": [
-          "Restrict IMDS access by configuring VM network rules to block metadata endpoint from application containers",
+          "Enable Metadata Security Protocol (Guest Proxy Agent) to restrict IMDS and WireServer access to allowlisted processes",
           "Use Managed Identities with minimal RBAC scope instead of storing credentials on the VM",
           "Enable Microsoft Defender for Servers to detect credential dumping tools and techniques",
           "Enforce Azure AD authentication for RDP/SSH instead of local passwords"
@@ -79,7 +81,7 @@
         "unpatched-vulnerabilities": [
           "Enable Azure Update Manager for automated patch assessment and scheduled deployment",
           "Use Microsoft Defender for Cloud vulnerability assessment to continuously scan for CVEs",
-          "Configure Qualys or Microsoft Defender Vulnerability Management integration for deep VM scanning",
+          "Assign the built-in Azure Policy that enables periodic assessment of missing system updates in Azure Update Manager",
           "Use Azure Compute Gallery with regularly updated golden images for VM provisioning"
         ],
         "ssrf-attack": [
@@ -87,6 +89,11 @@
           "Use Managed Identity with minimal RBAC scope to limit the blast radius of IMDS token theft",
           "Validate and sanitize all user-supplied URLs before making server-side HTTP requests",
           "Deploy Azure WAF on Application Gateway with SSRF-specific custom rules"
+        ],
+        "remote-command-execution": [
+          "Restrict virtualMachines/runCommand/action, runCommands/write and extensions/write to a dedicated operator role",
+          "Allow only approved VM extensions with the built-in Azure Policy 'Only approved VM extensions should be installed'",
+          "Alert on Run Command and Custom Script Extension operations in the Activity Log with Defender for Resource Manager or Sentinel"
         ]
       }
     },
@@ -101,30 +108,35 @@
         "misconfiguration",
         "excessive-permissions",
         "sensitive-data-exposure",
-        "dos-attack"
+        "dos-attack",
+        "ssrf-attack",
+        "supply-chain-attack"
       ],
       "threatContext": {
         "injection-attack": "Event data injection via HTTP triggers, Service Bus messages, or Event Grid events; command injection through unsanitized input bindings passed to shell commands",
         "misconfiguration": "Anonymous HTTP trigger authentication level, public function app with exposed Kudu SCM, host.json misconfiguration enabling debug endpoints, CORS allowing wildcard origins",
         "excessive-permissions": "Managed Identity with broad RBAC roles (Contributor, Owner), overly permissive Key Vault access policies, unnecessary Azure resource access through function bindings",
         "sensitive-data-exposure": "Secrets in application settings instead of Key Vault references, sensitive data in Application Insights logs, connection strings in function.json, /tmp persistence across warm starts",
-        "dos-attack": "Consumption plan scale limit exhaustion, durable function orchestration bombing, recursive trigger loops (Blob->Function->Blob), HTTP trigger rate limit bypass"
+        "dos-attack": "Consumption plan scale limit exhaustion, durable function orchestration bombing, recursive trigger loops (Blob->Function->Blob), HTTP trigger rate limit bypass",
+        "ssrf-attack": "Plain SSRF cannot fetch managed identity tokens because IDENTITY_ENDPOINT requires the X-IDENTITY-HEADER value, but file:// SSRF on Linux plans reads /proc/self/environ: IDENTITY_HEADER, resolved app settings and the AzureWebJobsStorage connection string, whose account key can overwrite the deployed code",
+        "supply-chain-attack": "Malicious npm, PyPI or NuGet packages in the deployment package, FTP/SCM basic auth or leaked publish profiles used to push code, deployment packages and content shares rewritten by anyone holding the storage account key"
       },
       "threatMitigations": {
         "injection-attack": [
           "Validate and sanitize all input from HTTP triggers, Service Bus messages, and Event Grid events before processing",
           "Use parameterized queries for any database bindings and avoid passing input to shell commands",
-          "Enable Azure API Management in front of HTTP-triggered functions for request validation and throttling"
+          "Enable Azure API Management in front of HTTP-triggered functions for request validation and throttling",
+          "Route egress through VNet integration (outboundVnetRouting.allTraffic) and Azure Firewall, and alert on unexpected destinations"
         ],
         "misconfiguration": [
-          "Enforce Function-level or Admin-level authentication on HTTP triggers instead of Anonymous",
+          "Require Microsoft Entra ID through App Service Authentication or API Management on HTTP triggers, and never distribute the master key",
           "Use Azure Policy to audit and enforce function app configurations (HTTPS-only, minimum TLS version, VNet integration)",
           "Restrict Kudu/SCM site access to specific IP ranges or disable basic authentication",
           "Configure CORS with explicit allowed origins instead of wildcard"
         ],
         "excessive-permissions": [
           "Scope Managed Identity RBAC assignments to specific resources rather than resource group or subscription level",
-          "Use Key Vault references in application settings instead of direct Key Vault access policies",
+          "Grant the managed identity Key Vault Secrets User through Azure RBAC on only the vault or secrets it needs, instead of vault-wide access policies",
           "Review and remove unused RBAC role assignments with Microsoft Entra ID access reviews",
           "Create separate Managed Identities per function app instead of sharing identities across apps"
         ],
@@ -138,7 +150,18 @@
           "Configure maximum scale-out limits on Consumption and Premium plans to prevent resource exhaustion",
           "Implement dead-letter queues and retry policies to break recursive trigger loops",
           "Use Azure API Management rate limiting and throttling policies on HTTP-triggered functions",
-          "Set appropriate function timeout values to prevent long-running invocation abuse"
+          "Set appropriate function timeout values to prevent long-running invocation abuse",
+          "Set Azure Cost Management budgets with action group alerts on the function app's resource group"
+        ],
+        "ssrf-attack": [
+          "Validate user-supplied URLs against an allowlist and disable non-HTTP schemes (file://) in the HTTP client",
+          "Use identity-based connections for AzureWebJobsStorage and bindings",
+          "Route egress through VNet integration with outboundVnetRouting.allTraffic and NSG or Azure Firewall rules that block internal ranges the app does not need"
+        ],
+        "supply-chain-attack": [
+          "Disable FTP and SCM basic authentication publishing credentials and deploy only from CI/CD using OIDC federated identities",
+          "Pin dependencies with lock files and scan them in CI before building the deployment package",
+          "Restrict write access to the function's storage account and package container"
         ]
       }
     },
@@ -175,7 +198,7 @@
           "Enable Azure OpenAI content filtering at the strictest appropriate level for all deployments",
           "Implement input validation and prompt guardrails in the application layer before calling the API",
           "Use system message hardening with clear boundaries separating instructions from user input",
-          "Enable abuse monitoring and configure alerting for anomalous prompt patterns"
+          "Enable Microsoft Defender for Cloud AI threat protection to alert on jailbreak and prompt-injection attempts against deployments"
         ],
         "insecure-output-handling": [
           "Never render Azure OpenAI output as trusted HTML or pass it or function arguments to eval, shell or dynamic SQL",
@@ -210,7 +233,8 @@
           "Configure per-deployment TPM and RPM rate limits to prevent quota exhaustion",
           "Use Azure API Management as a gateway to enforce throttling and request size limits",
           "Enable Azure Monitor alerts for quota utilization thresholds to detect abuse early",
-          "Separate deployments for different workloads to isolate quota consumption"
+          "Separate deployments for different workloads to isolate quota consumption",
+          "Configure Azure Cost Management budgets and alerts on the Azure OpenAI resource"
         ],
         "misconfiguration": [
           "Use Azure Policy to enforce content filtering enabled on all Azure OpenAI deployments",
@@ -240,21 +264,24 @@
         "unauthorized-access",
         "data-exfiltration",
         "excessive-permissions",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "dos-attack",
+        "insecure-output-handling"
       ],
       "threatContext": {
         "prompt-injection": "Prompt injection against LLM endpoints deployed on managed online endpoints, Foundation Model as a Service (MaaS) model jailbreaking, real-time inference endpoint manipulation",
-        "misconfiguration": "Compute instances with public IP enabled, managed online endpoints without authentication, workspace with public network access, datastores with overly permissive SAS tokens",
-        "unauthorized-access": "Compute instance managed identity abuse via IMDS, workspace access token theft, service principal credentials in environment variables, scoring endpoint without key authentication",
+        "misconfiguration": "Compute instances with public IP or SSH enabled, workspace with public network access, managed online endpoints left on non-expiring key auth, datastores holding account keys or long-lived SAS tokens",
+        "unauthorized-access": "Compute instance managed identity tokens requested from the local MSI endpoint, workspace access token theft, service principal credentials in environment variables, leaked endpoint keys that never expire",
         "data-exfiltration": "Training data extraction via compute instances, model artifact theft from workspace storage, registered dataset export to external storage, batch endpoint outputs to attacker-controlled locations",
         "ai-training-data-poisoning": "Malicious data in registered datasets, pipeline data asset manipulation, labeling project data injection via Data Labeling service",
         "ai-model-extraction": "Online endpoint systematic querying, batch endpoint output analysis, registered model download from model registry",
         "excessive-permissions": "Workspace managed identity with broad RBAC roles, compute instance identities with subscription-wide access, pipeline service principals with Storage Blob Data Owner on all datastores",
-        "sensitive-data-exposure": "Training data containing PII in workspace datastores, experiment logs revealing sensitive hyperparameters, model artifacts with embedded sensitive information, inference logs containing user data"
+        "sensitive-data-exposure": "Training data containing PII in workspace datastores, experiment logs revealing sensitive hyperparameters, model artifacts with embedded sensitive information, inference logs containing user data",
+        "dos-attack": "Scoring floods or long-context LLM requests saturating managed online endpoint instances, autoscale running to maximum instance count and running up cost, serverless API deployments exhausting tokens-per-minute quota"
       },
       "threatMitigations": {
         "prompt-injection": [
-          "Enable content filtering on managed online endpoints serving LLM models",
+          "Apply Azure AI Content Safety filtering to serverless API (MaaS) and managed online endpoint deployments",
           "Implement input validation and prompt sanitization in scoring scripts before model inference",
           "Use Azure AI Content Safety integration for real-time prompt screening"
         ],
@@ -265,7 +292,7 @@
           "Validate training data integrity with checksums before pipeline execution"
         ],
         "ai-model-extraction": [
-          "Configure authentication (key or token) on all managed online endpoints",
+          "Restrict model registry and workspace storage access with RBAC and encrypt model artifacts with customer-managed keys",
           "Implement rate limiting on scoring endpoints using Azure API Management",
           "Restrict endpoint network access with Private Endpoints and disable public access",
           "Enable Azure Monitor alerts for unusual inference request volumes"
@@ -278,7 +305,7 @@
         ],
         "unauthorized-access": [
           "Enforce Azure AD authentication on managed online endpoints instead of key-based auth",
-          "Restrict IMDS access on compute instances by configuring network isolation",
+          "Assign compute instances a least-privilege user-assigned managed identity and keep SSH disabled unless required",
           "Use workspace-level RBAC with custom roles scoped to specific experiments and endpoints",
           "Store service principal credentials in Key Vault instead of environment variables"
         ],
@@ -295,10 +322,20 @@
           "Restrict pipeline service principal access to specific datastores using Storage Blob Data Reader"
         ],
         "sensitive-data-exposure": [
-          "Use Azure ML data asset capabilities with column-level access controls to restrict PII exposure",
+          "Use identity-based datastore access instead of stored account keys or SAS tokens",
           "Configure experiment logging to exclude sensitive hyperparameters and training data samples",
           "Enable customer-managed key encryption on workspace storage accounts and datastores",
           "Restrict access to run outputs and model artifacts with workspace-level RBAC"
+        ],
+        "dos-attack": [
+          "Set the maximum instance count in managed online endpoint autoscale rules",
+          "Configure Azure Cost Management budgets and alerts on the workspace resource group",
+          "Front online endpoints with Azure API Management rate-limit-by-key and llm-token-limit policies"
+        ],
+        "insecure-output-handling": [
+          "Treat online endpoint and serverless API responses as untrusted; never pass them to eval, shell commands or dynamic SQL",
+          "Constrain generated output to a strict schema in the scoring script and validate it server-side before downstream use",
+          "Encode endpoint output for its rendering context and apply a Content Security Policy when displaying it in a browser"
         ]
       }
     },
@@ -319,7 +356,7 @@
       "threatContext": {
         "prompt-injection": "Language service custom question answering injection, Translator service prompt manipulation, Document Intelligence extraction bypass",
         "sensitive-data-exposure": "OCR/Document Intelligence extracting PII from documents, Speech transcription of confidential conversations, Face API storing biometric data, Language service PII detection results logged",
-        "misconfiguration": "Multi-service resource exposing all AI capabilities under single API key, custom domain without TLS enforcement, public network access without IP restrictions, responsible AI content filters disabled",
+        "misconfiguration": "Multi-service resource exposing all AI capabilities under single API key, local (key) auth left enabled, public network access without IP restrictions, responsible AI content filters disabled",
         "dos-attack": "API quota exhaustion across services, large document/image processing consuming compute, batch processing quota consumption",
         "unauthorized-access": "API key exposure in client-side code or repositories, RBAC misconfiguration on Azure AI Services resource, multi-service key granting access to all capabilities, public network access without firewall rules",
         "excessive-permissions": "Service-level API keys granting access to all features within the resource, managed identities with overly broad access, subscription-wide Cognitive Services Contributor role"
@@ -343,7 +380,7 @@
           "Enable responsible AI content filtering on all applicable service endpoints"
         ],
         "dos-attack": [
-          "Configure per-service rate limits and request quotas to prevent capacity exhaustion",
+          "Choose pricing tiers with known request limits, keep separate resources per workload and set Cost Management budgets on each",
           "Use Azure API Management to enforce throttling policies in front of AI Services endpoints",
           "Enable Azure Monitor alerts on API quota utilization metrics to detect abuse early",
           "Implement request size validation to reject oversized document and image payloads"
@@ -372,20 +409,23 @@
         "workflow-manipulation",
         "misconfiguration",
         "excessive-permissions",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "credential-theft"
       ],
       "threatContext": {
         "workflow-manipulation": "Workflow definition tampering to skip approval steps, malicious action injection through dynamic content, callback URL manipulation, unauthorized run trigger via exposed HTTP endpoint",
         "misconfiguration": "HTTP trigger without authentication, workflow run history retention exposing sensitive data, missing VNet integration for internal resources, permissive firewall rules on Standard tier",
         "excessive-permissions": "Managed Identity with broad RBAC roles across subscriptions, API connections with excessive permissions, OAuth consent grants to third-party connectors with broad scopes",
-        "sensitive-data-exposure": "Secrets in workflow parameters instead of Key Vault, sensitive data visible in run history inputs/outputs, API connection credentials stored insecurely, tracked properties logging PII"
+        "sensitive-data-exposure": "Secrets in workflow parameters instead of Key Vault, sensitive data visible in run history inputs/outputs, API connection credentials stored insecurely, tracked properties logging PII",
+        "credential-theft": "API connections storing OAuth tokens and keys that any workflow editor can reuse, SAS signatures in request trigger callback URLs, connection strings in Standard-tier app settings, secrets in run history"
       },
       "threatMitigations": {
         "workflow-manipulation": [
           "Enable Azure RBAC to restrict who can edit workflow definitions and trigger runs",
           "Use resource locks on production Logic Apps to prevent accidental or unauthorized modification",
           "Configure IP restrictions on HTTP triggers to accept requests only from known sources",
-          "Enable Azure Monitor diagnostic logs to audit workflow definition changes and run triggers"
+          "Enable Azure Monitor diagnostic logs to audit workflow definition changes and run triggers",
+          "Deploy workflow definitions from source control through reviewed ARM or Bicep pipelines and give humans Logic App Operator rather than Contributor"
         ],
         "misconfiguration": [
           "Enforce OAuth or Azure AD authentication on HTTP triggers instead of allowing anonymous access",
@@ -404,6 +444,12 @@
           "Enable secure inputs and secure outputs on workflow actions to mask data in run history",
           "Configure obfuscation of tracked properties to prevent PII from appearing in monitoring logs",
           "Restrict access to Logic App run history with Azure RBAC and limit Reader role assignments"
+        ],
+        "credential-theft": [
+          "Use managed identity authentication on connectors and HTTP actions instead of API connections authorised with user OAuth tokens or keys",
+          "Treat request trigger callback URLs as secrets: prefer Entra ID OAuth authorization policies and regenerate access keys if a SAS URL leaks",
+          "Limit who can use or edit API connections",
+          "Use Key Vault references for connection strings and storage keys in Standard-tier app settings"
         ]
       }
     },
@@ -420,8 +466,11 @@
         "misconfiguration",
         "backup-exposure"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
-        "sql-injection": "T-SQL injection, xp_cmdshell abuse if enabled, BULK INSERT exploitation, linked server pivoting",
+        "sql-injection": "T-SQL injection with stacked queries, sp_invoke_external_rest_endpoint to send data to attacker URLs, OPENROWSET or BULK INSERT against external data sources using database scoped credentials; xp_cmdshell and linked servers are unavailable in Azure SQL Database",
         "unauthorized-access": "Azure AD authentication bypass, firewall rule allowing 0.0.0.0/0, contained database user abuse, SQL admin credential exposure",
         "data-exfiltration": "BACPAC export to attacker storage, geo-replication to external subscriptions, data sync to external SQL Server, Azure Data Factory pipeline abuse",
         "backup-exposure": "Long-term retention backup access, geo-redundant backup copy, automated backup export to external storage"
@@ -431,7 +480,7 @@
           "Use parameterized queries and stored procedures to prevent dynamic SQL injection",
           "Enable Azure SQL Advanced Threat Protection to detect SQL injection attempts in real time",
           "Configure Azure SQL Auditing to log and alert on suspicious query patterns",
-          "Disable xp_cmdshell and restrict BULK INSERT permissions to prevent command execution"
+          "Revoke EXECUTE ANY EXTERNAL ENDPOINT and ADMINISTER DATABASE BULK OPERATIONS from application users"
         ],
         "unauthorized-access": [
           "Enforce Azure AD-only authentication and disable SQL authentication on the server",
@@ -470,20 +519,26 @@
         "unauthorized-access",
         "data-exfiltration",
         "misconfiguration",
-        "backup-exposure"
+        "backup-exposure",
+        "query-injection"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
-        "nosql-injection": "SQL API query injection, MongoDB API query operator injection, Gremlin traversal injection for Graph API",
-        "backup-exposure": "Continuous backup with PITR exposing historical data, periodic backup files in Azure Storage with permissive access, cross-region backup restoration to attacker-controlled subscriptions",
+        "nosql-injection": "API for NoSQL query string concatenation, MongoDB API operator injection ($ne, $gt, $regex) via unsanitized JSON, CQL concatenation on the API for Cassandra",
+        "backup-exposure": "Point-in-time restore (continuous backup) into a new account that lacks the source firewall, VNet, private endpoint and data plane RBAC settings, by a principal holding restore permissions; periodic backups are Microsoft-managed and reached only through restore",
         "unauthorized-access": "Primary/secondary key exposure, connection string leakage, IP firewall allowing public access, Azure AD RBAC misconfiguration",
-        "data-exfiltration": "Change feed consumer for real-time data capture, global distribution to attacker-controlled regions, Data Explorer bulk export"
+        "data-exfiltration": "Change feed consumer for real-time data capture, global distribution to attacker-controlled regions, Data Explorer bulk export",
+        "query-injection": "Gremlin traversal injection on the API for Gremlin when traversals are built by concatenating user input into script strings"
       },
       "threatMitigations": {
         "nosql-injection": [
           "Use parameterized queries with the Cosmos DB SDK instead of string-concatenated queries",
           "Implement input validation and sanitization for all query parameters in the application layer",
           "Restrict stored procedure and UDF creation permissions to prevent injection via server-side code",
-          "Enable Azure Monitor diagnostic logs on Cosmos DB to detect anomalous query patterns"
+          "Enable Azure Monitor diagnostic logs on Cosmos DB to detect anomalous query patterns",
+          "Reject $-prefixed keys in user-supplied JSON on the API for MongoDB and coerce inputs to expected scalar types"
         ],
         "unauthorized-access": [
           "Disable key-based access and enforce Azure AD RBAC authentication on the Cosmos DB account",
@@ -505,9 +560,14 @@
         ],
         "backup-exposure": [
           "Restrict backup restore permissions using Azure RBAC to a limited set of administrators",
-          "Use Azure Policy to enforce continuous backup only to approved regions and subscriptions",
+          "Assign the built-in Azure Policy 'Azure Cosmos DB should disable public network access' with Deny",
           "Enable Azure Monitor alerts on restore operations to detect unauthorized data recovery attempts",
           "Configure customer-managed keys for encryption of backup data at rest"
+        ],
+        "query-injection": [
+          "Build Gremlin traversals with parameter bindings rather than concatenating user input into the Gremlin script string",
+          "Validate vertex labels, property keys and IDs from user input against allow-lists before building traversals",
+          "Use read-only keys or a read-only Entra ID data role for application paths that only traverse the graph"
         ]
       }
     },
@@ -525,7 +585,7 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "sql-injection": "PostgreSQL injection via string concatenation, COPY TO/FROM abuse, pg_read_file for server file access, extension-based attacks",
+        "sql-injection": "PostgreSQL injection via string concatenation, dblink or postgres_fdw to reach other servers, azure_storage extension to read or write blob storage; pg_read_file and server-side COPY need superuser, which azure_pg_admin lacks",
         "unauthorized-access": "Firewall rule allowing all Azure services (0.0.0.0), Azure AD authentication bypass, SSL enforcement disabled, connection pooling credential exposure",
         "data-exfiltration": "pg_dump credential theft, read replica in external subscription, logical replication to external PostgreSQL, server logs containing query data",
         "backup-exposure": "Geo-redundant backup access from external subscription, long-term retention policy abuse, point-in-time restore to attacker server"
@@ -535,7 +595,8 @@
           "Use parameterized queries and prepared statements in all application code",
           "Enable Microsoft Defender for open-source relational databases to detect SQL injection attempts",
           "Configure pgAudit extension for detailed query logging and anomaly detection",
-          "Restrict database user privileges using GRANT with minimal required permissions"
+          "Restrict database user privileges using GRANT with minimal required permissions",
+          "Allowlist only required extensions in azure.extensions, excluding dblink, postgres_fdw and azure_storage unless needed"
         ],
         "unauthorized-access": [
           "Enable Entra ID authentication and disable local password authentication",
@@ -577,7 +638,7 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "sql-injection": "MySQL injection via string concatenation, LOAD_FILE() for file read, INTO OUTFILE abuse, stored procedure injection",
+        "sql-injection": "MySQL injection via string concatenation, UNION and blind extraction, stored procedure injection; server-side LOAD_FILE and INTO OUTFILE are unsupported on Flexible Server, so impact stays within what the app account can read",
         "unauthorized-access": "Firewall rule allowing all Azure services, SSL enforcement disabled, admin credential exposure in connection strings",
         "data-exfiltration": "mysqldump via compromised credentials, read replica to external subscription, Data-in replication from attacker MySQL, slow query log data exposure",
         "backup-exposure": "Geo-redundant backup copy, automated backup access via management plane, point-in-time restore to attacker-controlled server"
@@ -586,7 +647,7 @@
         "sql-injection": [
           "Use parameterized queries and prepared statements in all application code",
           "Enable Microsoft Defender for open-source relational databases to detect injection attacks",
-          "Disable LOAD_FILE and INTO OUTFILE via server parameter require_secure_transport",
+          "Enable the audit_log_enabled server parameter with audit_log_events covering CONNECTION, DML and DDL",
           "Restrict database user privileges to minimum required using GRANT statements"
         ],
         "unauthorized-access": [
@@ -625,12 +686,14 @@
         "unauthorized-access",
         "cache-poisoning",
         "data-exfiltration",
-        "misconfiguration"
+        "misconfiguration",
+        "backup-exposure"
       ],
       "threatContext": {
         "unauthorized-access": "Access key exposure in connection strings, non-SSL port enabled, VNet integration bypass, Entra ID authentication misconfiguration",
         "cache-poisoning": "Session data manipulation, key injection via application vulnerabilities, cache writes using leaked access keys",
-        "data-exfiltration": "RDB persistence file access, Redis BGSAVE export, key enumeration via SCAN/KEYS, geo-replication to attacker-controlled cache"
+        "data-exfiltration": "Export to a page blob in a storage account the attacker controls or can read (Premium), key enumeration via SCAN followed by bulk GET with leaked access keys; BGSAVE, SYNC and REPLICAOF are disabled on the service",
+        "backup-exposure": "Premium RDB/AOF persistence and Export data written to customer storage accounts with shared-key access or public network access, persistence storage connection strings reused across environments"
       },
       "threatMitigations": {
         "unauthorized-access": [
@@ -648,13 +711,18 @@
           "Configure Private Endpoints to restrict cache access to authorized VNets",
           "Disable RDB persistence export or restrict access to the storage account",
           "Restrict geo-replication configuration permissions via Azure RBAC",
-          "Enable diagnostic settings and monitor for KEYS/SCAN command usage"
+          "Enable connection diagnostic logs (ConnectedClientList) and alert on client IPs outside expected application subnets"
         ],
         "misconfiguration": [
           "Use Azure Policy to enforce Private Endpoints and TLS requirements",
           "Enable data persistence encryption with customer-managed keys",
           "Configure firewall rules and VNet integration to restrict network access",
-          "Enable diagnostic settings for connection and command audit logging"
+          "Send connection diagnostic logs (ConnectedClientList) to Log Analytics and restrict access with Entra ID data access policies"
+        ],
+        "backup-exposure": [
+          "Use a managed identity for persistence and export storage, and disable shared-key access and public network access on that storage account",
+          "Restrict Microsoft.Cache/redis/export/action to backup administrators and alert on export operations in the Activity Log",
+          "Encrypt persistence storage with customer-managed keys and apply lifecycle rules to delete exported RDB files past retention"
         ]
       }
     },
@@ -670,7 +738,8 @@
         "data-exfiltration",
         "excessive-permissions",
         "sensitive-data-exposure",
-        "backup-exposure"
+        "backup-exposure",
+        "misconfiguration"
       ],
       "threatContext": {
         "sql-injection": "Dedicated SQL pool T-SQL injection, serverless SQL query injection, Spark SQL injection in notebooks",
@@ -694,7 +763,7 @@
         ],
         "data-exfiltration": [
           "Enable data exfiltration protection on the managed VNet workspace",
-          "Restrict COPY INTO and external table destinations via Synapse RBAC",
+          "Grant ALTER ANY EXTERNAL DATA SOURCE, ALTER ANY EXTERNAL FILE FORMAT and ADMINISTER DATABASE BULK OPERATIONS only to ETL roles",
           "Configure Azure Policy to enforce managed VNet requirements",
           "Enable diagnostic settings to monitor pipeline and query activity"
         ],
@@ -713,8 +782,13 @@
         "backup-exposure": [
           "Restrict restore point access via Azure RBAC on the Synapse workspace",
           "Use customer-managed keys for dedicated SQL pool encryption",
-          "Configure Azure Policy to enforce backup retention limits",
+          "Alert on dedicated SQL pool restores and geo-restores in the Azure Activity Log, especially into other workspaces or subscriptions",
           "Enable resource locks on production Synapse workspaces"
+        ],
+        "misconfiguration": [
+          "Use Azure Policy built-ins to require a managed VNet, disabled public network access and Microsoft Entra-only authentication on Synapse workspaces",
+          "Enable Microsoft Defender for SQL vulnerability assessment on dedicated SQL pools",
+          "Enable auditing on dedicated SQL pools and send workspace diagnostic logs to Log Analytics"
         ]
       }
     },
@@ -732,7 +806,7 @@
         "backup-exposure"
       ],
       "threatContext": {
-        "bucket-misconfiguration": "Public container enumeration, anonymous blob access enabled, overly permissive shared access signatures (SAS tokens)",
+        "bucket-misconfiguration": "Public container enumeration, anonymous blob access enabled, overly permissive shared access signatures (SAS tokens), write-enabled SAS or containers serving scripts, subdomain takeover of deleted accounts still referenced by DNS CNAMEs to blob or static website endpoints",
         "data-exfiltration": "AzCopy bulk downloads, cross-tenant replication abuse, storage account key compromise",
         "unauthorized-access": "SAS token abuse, storage account key exposure, overly permissive RBAC on containers",
         "backup-exposure": "Soft delete exposing deleted sensitive blobs, blob versioning retaining historical sensitive data, snapshot access by unauthorized principals"
@@ -742,7 +816,8 @@
           "Disable anonymous blob access at the storage account level via Azure Policy",
           "Issue only short-lived user delegation SAS tokens and configure a SAS expiration policy on each storage account",
           "Disable shared key authorization and require Entra ID RBAC for data access",
-          "Enable Microsoft Defender for Storage to detect public access misconfigurations"
+          "Enable Microsoft Defender for Storage to detect public access misconfigurations",
+          "Alert on changes to allowBlobPublicAccess, container public access level and storage account network rules with Azure Activity Log alerts"
         ],
         "data-exfiltration": [
           "Enable Microsoft Defender for Storage for anomalous data access alerting",
@@ -800,7 +875,7 @@
           "Enable Microsoft Defender for Storage for anomalous access detection",
           "Configure Private Endpoints to restrict file share access to authorized VNets",
           "Restrict Azure File Sync server endpoint creation via Azure RBAC",
-          "Enable Storage Analytics logging to monitor bulk download operations"
+          "Route Azure Files resource logs (StorageRead) to Log Analytics via diagnostic settings and alert on unusual bulk read volumes"
         ],
         "misconfiguration": [
           "Use Azure Policy to enforce secure transfer (HTTPS) and minimum TLS version",
@@ -841,19 +916,20 @@
         "data-exfiltration": "AzCopy/Azure Storage Explorer bulk downloads, cross-tenant data copy, Synapse/Databricks query result exfiltration",
         "unauthorized-access": "Storage account key compromise, SAS token with overly broad permissions, RBAC role assignment abuse on data plane",
         "excessive-permissions": "Storage Blob Data Owner granted too broadly, wildcard path ACLs, excessive service principal permissions",
-        "backup-exposure": "Point-in-time restore exposing historical data, blob versioning retaining sensitive data beyond retention requirements, lifecycle management archiving to accessible tiers"
+        "backup-exposure": "Blob soft delete and versioning retaining deleted or overwritten files, copies made with AzCopy or Data Factory to other accounts where the source POSIX ACLs no longer apply, Azure Backup copies readable by broader roles than the source"
       },
       "threatMitigations": {
         "bucket-misconfiguration": [
           "Disable anonymous blob access at the storage account level via Azure Policy",
           "Grant POSIX ACLs on sensitive directories only to Entra ID security groups and set default ACLs so new children inherit restrictive permissions",
           "Enable Microsoft Defender for Storage to detect public access misconfigurations",
-          "Disable shared key authorization and enforce Entra ID RBAC for all data access"
+          "Disable shared key authorization and enforce Entra ID RBAC for all data access",
+          "Alert on changes to allowBlobPublicAccess, container public access level and storage account network rules with Azure Activity Log alerts"
         ],
         "data-exfiltration": [
           "Configure Private Endpoints and disable public network access",
           "Enable Microsoft Defender for Storage for anomalous data access alerting",
-          "Restrict object replication and cross-tenant copy via Azure Policy",
+          "Apply VNet service endpoint policies that limit workload subnets to approved storage accounts",
           "Enable diagnostic settings to monitor bulk data transfer patterns"
         ],
         "unauthorized-access": [
@@ -875,7 +951,7 @@
           "Restrict service principal access to specific filesystem paths via ACLs"
         ],
         "backup-exposure": [
-          "Configure point-in-time restore retention to the minimum required period",
+          "Set blob soft delete and container soft delete retention to the minimum required period",
           "Restrict restore and versioning management permissions via Azure RBAC",
           "Use lifecycle management policies to automatically delete expired versions",
           "Enable resource locks on production Data Lake storage accounts"
@@ -896,7 +972,8 @@
         "supply-chain-attack",
         "credential-theft",
         "lateral-movement",
-        "kubernetes-secrets-exposure"
+        "kubernetes-secrets-exposure",
+        "backup-exposure"
       ],
       "threatContext": {
         "container-escape": "Privileged pod breakout to node, hostPath volume mounts exposing node filesystem, hostPID/hostNetwork namespace abuse, kernel exploit escalation from container",
@@ -906,14 +983,16 @@
         "supply-chain-attack": "Malicious images from ACR, compromised Helm charts, Azure Policy bypass for unscanned images, admission controller circumvention, supply chain poisoning via trusted registries",
         "credential-theft": "Pod access to Azure IMDS (http://169.254.169.254) for managed identity token theft, AKS service account token extraction, kubelet credential theft from compromised node",
         "lateral-movement": "Pod-to-pod communication via default-allow NetworkPolicy, Azure CNI allowing direct VNet access from pods, cross-namespace service access, VNet-level pivoting from compromised nodes",
-        "kubernetes-secrets-exposure": "Secrets accessible via Kubernetes API, Azure Key Vault integration not enabled by default, ServiceAccount tokens auto-mounted to pods, AKS admin credentials in kubeconfig"
+        "kubernetes-secrets-exposure": "Secrets accessible via Kubernetes API, Azure Key Vault integration not enabled by default, ServiceAccount tokens auto-mounted to pods, AKS admin credentials in kubeconfig",
+        "backup-exposure": "Azure Backup for AKS writes cluster resources, including Secrets, to a blob container in a customer storage account and disk snapshots to a snapshot resource group; Velero backups hold the same data in Blob Storage"
       },
       "threatMitigations": {
         "container-escape": [
           "Enforce Pod Security Standards (Restricted profile) via Azure Policy add-on to block privileged containers and hostPath mounts",
           "Enable Microsoft Defender for Containers to detect runtime container escape attempts and anomalous node activity",
           "Use AKS node pools with Azure Linux (Mariner) or hardened OS images to reduce kernel attack surface",
-          "Configure Azure Policy to deny hostPID, hostNetwork, and hostIPC namespace sharing in pod specs"
+          "Configure Azure Policy to deny hostPID, hostNetwork, and hostIPC namespace sharing in pod specs",
+          "Enable node OS auto-upgrade (SecurityPatch or NodeImage channel), and use Pod Sandboxing (Kata) for untrusted pods"
         ],
         "misconfiguration": [
           "Enable Azure Policy add-on and assign the Kubernetes cluster pod security restricted standards initiative",
@@ -936,7 +1015,7 @@
         "supply-chain-attack": [
           "Enable Azure Policy to restrict image pulls to allowlisted ACR registries only",
           "Configure Microsoft Defender for Containers vulnerability scanning on ACR and block deployment of vulnerable images",
-          "Enable ACR content trust and image quarantine to enforce signed and scanned images before deployment",
+          "Verify Notation or cosign image signatures at admission with Ratify and Azure Policy before pods run",
           "Use Gatekeeper/OPA admission controllers to validate image signatures and enforce digest-based image references"
         ],
         "credential-theft": [
@@ -955,7 +1034,13 @@
           "Use Azure Key Vault Provider for Secrets Store CSI Driver to mount secrets from Key Vault instead of Kubernetes Secrets",
           "Enable encryption at rest for etcd secrets using customer-managed keys via Azure Key Vault",
           "Restrict Kubernetes RBAC permissions on Secret resources to only workloads that explicitly require access",
-          "Disable auto-mounting of ServiceAccount tokens and use projected volumes with short-lived bound tokens"
+          "Disable auto-mounting of ServiceAccount tokens and use projected volumes with short-lived bound tokens",
+          "Restrict create on pods and workload controllers in namespaces holding sensitive Secrets"
+        ],
+        "backup-exposure": [
+          "Restrict the storage account used by the AKS Backup extension with private endpoints, no public access and RBAC limited to the extension identity",
+          "Limit Backup Contributor and restore rights on the Backup vault to backup administrators, and enable immutability and soft delete",
+          "Alert via Activity Log on AKS backup restore operations, especially restores into a different cluster"
         ]
       }
     },
@@ -1010,7 +1095,7 @@
           "Restrict image sources to trusted ACR registries using Azure Policy on container group definitions",
           "Enable Microsoft Defender for Containers vulnerability scanning on ACR to block deployment of vulnerable images",
           "Use immutable image tags (digest-based references) in container group definitions to prevent tag manipulation",
-          "Enable ACR content trust to enforce image signing before deployment to Container Instances"
+          "Verify Notation signatures on images in the deployment pipeline before creating container groups"
         ],
         "credential-theft": [
           "Use Managed Identity with minimal RBAC scope to limit the impact of IMDS token theft from containers",
@@ -1033,15 +1118,15 @@
         "sensitive-data-exposure"
       ],
       "threatContext": {
-        "supply-chain-attack": "Malicious image push via compromised service principal, image tag mutation attacks (mutable tags overwritten), base image poisoning, webhook abuse for malicious deployments, content trust bypass",
+        "supply-chain-attack": "Malicious image push via compromised service principal, image tag mutation attacks (mutable tags overwritten), base image poisoning, webhook abuse for malicious deployments, Notation signature verification not enforced at deployment",
         "unauthorized-access": "Admin user credentials exposed, overly permissive RBAC (AcrPush/AcrPull to wrong principals), token credential theft, cross-tenant replication abuse, anonymous pull enabled",
-        "misconfiguration": "Vulnerability scanning (Defender for Containers) disabled, public network access enabled, missing geo-replication for DR, retention policies not configured, content trust not enforced",
+        "misconfiguration": "Vulnerability scanning (Defender for Containers) disabled, public network access enabled, missing geo-replication for DR, retention policies not configured, image signing and signature verification not enforced",
         "sensitive-data-exposure": "Secrets baked into image layers, exposed via image history, service principal keys in container images, .env files committed to images, Azure credentials in Dockerfile"
       },
       "threatMitigations": {
         "supply-chain-attack": [
           "Enable Microsoft Defender for Containers to continuously scan images for vulnerabilities and malware",
-          "Enforce content trust (Docker Content Trust / Notary v2) to require signed images for all pulls",
+          "Sign images with Notation (Notary Project) using keys in Azure Key Vault and verify signatures before deployment",
           "Use immutable tags and tag-locking policies to prevent image tag overwrite attacks",
           "Configure ACR Tasks with automated base image update triggers to patch vulnerable parent images"
         ],
@@ -1055,7 +1140,7 @@
           "Enable Microsoft Defender for Containers vulnerability scanning and configure Azure Policy to deny unscanned images",
           "Disable public network access and enforce Private Endpoints for all registry communications",
           "Configure retention policies to automatically purge untagged manifests and stale images",
-          "Use Azure Policy to enforce Premium SKU for production registries requiring content trust and geo-replication"
+          "Use Azure Policy to require Premium SKU for production registries that need private endpoints and geo-replication"
         ],
         "sensitive-data-exposure": [
           "Use multi-stage Docker builds to prevent secrets from persisting in intermediate image layers",
@@ -1081,13 +1166,13 @@
         "credential-theft"
       ],
       "threatContext": {
-        "container-escape": "Kubernetes-based isolation escape attempts, sidecar container vulnerabilities (Dapr, Envoy), shared environment resource access, container breakout via kernel exploits",
+        "container-escape": "Breakout from one container into the rest of its replica (app, init and Dapr or other sidecar containers share the replica's network namespace and volumes); host isolation is Microsoft-managed, and dedicated workload profiles keep other tenants off the nodes",
         "misconfiguration": "Ingress exposed without authentication, secrets in environment variables instead of Key Vault references, revision traffic splitting exposing debug versions, overly permissive managed environment settings, missing VNet integration",
-        "unauthorized-access": "Managed identity token theft via IMDS, Dapr service invocation without proper authentication, console exec access without audit logging, revision URL exposure for old vulnerable versions",
+        "unauthorized-access": "Managed identity token theft via the local IDENTITY_ENDPOINT (needs the IDENTITY_HEADER value, so plain SSRF fails), Dapr service invocation without proper authentication, console exec access without audit logging, revision URL exposure for old vulnerable versions",
         "dos-attack": "Scale-to-zero cold start amplification, replica limit exhaustion, concurrent request limit abuse, sidecar resource contention causing application failures",
         "supply-chain-attack": "Malicious images from ACR or Docker Hub, compromised base images, Dapr component poisoning, init container image tampering",
         "privilege-escalation": "Managed identity token theft enabling Azure resource access, Dapr secret store access escalation, revision access to previous application versions with elevated permissions",
-        "credential-theft": "Managed identity token theft via IMDS endpoint, Dapr secret store credential extraction, environment variable credential leakage, connection string exposure"
+        "credential-theft": "Managed identity token theft by code running in the container (reading IDENTITY_ENDPOINT and IDENTITY_HEADER from its environment), Dapr secret store credential extraction, environment variable credential leakage, connection string exposure"
       },
       "threatMitigations": {
         "container-escape": [
@@ -1127,7 +1212,7 @@
           "Enable Microsoft Defender for Containers to detect privilege escalation via managed identity abuse"
         ],
         "credential-theft": [
-          "Use Managed Identity with minimal RBAC scope to limit the blast radius of IMDS-based token theft",
+          "Use a managed identity with minimal RBAC scope",
           "Store all secrets in Azure Key Vault and use Container Apps secret references instead of environment variables",
           "Configure Dapr secret store components with scoped access to prevent unauthorized credential retrieval",
           "Enable Azure Monitor alerts on managed identity token acquisition to detect anomalous credential access"
@@ -1162,20 +1247,20 @@
         "supply-chain-attack": [
           "Restrict pipeline YAML modifications to protected branches with required reviewers and branch policies",
           "Use Azure Artifacts with upstream source allowlists and scoped feed permissions to prevent dependency confusion",
-          "Restrict Azure Pipelines marketplace task installation to organization-verified publishers only",
+          "Disable Marketplace tasks under Organization Settings > Pipelines > Settings, or allow only extensions vetted by Project Collection Administrators",
           "Enable pipeline resource authorization to require explicit approval before pipelines access new resources"
         ],
         "injection-attack": [
           "Disable fork builds or require a team member comment to trigger PR validation pipelines from forks",
           "Use runtime parameters with allowed values instead of free-form variables to prevent template injection",
           "Restrict variable group access to specific pipelines and mark sensitive values as secret",
-          "Enable YAML pipeline schema validation and restrict extends templates to trusted repositories"
+          "Enable shell tasks arguments validation and require approved extends templates with the Required template check on protected resources"
         ],
         "misconfiguration": [
           "Enforce branch policies with required reviewers, build validation, and linked work items on protected branches",
           "Scope service connections to specific resource groups and require pipeline-level approval for production environments",
           "Use Azure DevOps audit logs and configure Azure Monitor alerts for security-sensitive configuration changes",
-          "Restrict YAML pipeline overrides by disabling the ability to set variables and change agent pools at queue time"
+          "Enable Limit variables that can be set at queue time"
         ],
         "credential-theft": [
           "Use workload identity federation on service connections instead of secret-based service principal authentication",
@@ -1219,15 +1304,18 @@
         "data-exfiltration",
         "privilege-escalation"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "credential-theft": "Access policy misconfiguration granting Get/List permissions, managed identity abuse to retrieve secrets, RBAC role assignment granting Key Vault Secrets Officer, private endpoint bypass, ARM template exposure of Key Vault references",
-        "misconfiguration": "Vault access policies granting Get+List to broad principals, missing private endpoint enforcement, soft-delete and purge-protection disabled, no network ACLs configured, RBAC vs access policy model confusion",
-        "excessive-permissions": "Access policies granting all secret/key/certificate permissions, Key Vault Contributor role granting management plane access, RBAC assignments at subscription level cascading to vault, managed identities with unnecessary vault access",
+        "misconfiguration": "Vaults still on the access policy permission model, purge protection not enabled (soft-delete is now mandatory), public network access enabled with no firewall rules or private endpoint, Get+List granted to broad principals, diagnostic settings missing",
+        "excessive-permissions": "Access policies granting all secret/key/certificate permissions, Contributor or Key Vault Contributor on access-policy vaults (vaults/write lets the holder grant itself data-plane access), RBAC assignments at subscription level cascading to vault, managed identities with unnecessary vault access",
         "audit-logging-bypass": "Key Vault diagnostic settings deleted or modified, Azure Monitor log collection disabled, activity log alerts removed, Log Analytics workspace access disrupted",
         "unauthorized-access": "Key Vault firewall disabled allowing public network access, missing private endpoint enforcement, compromised service principal accessing vault from external locations, access policy granting permissions to unintended principals",
         "sensitive-data-exposure": "Secret values logged in application diagnostics, exposed through ARM template outputs, key/secret/certificate names revealing infrastructure details, plaintext secrets in App Service configuration referencing Key Vault",
-        "data-exfiltration": "Systematic List + Get enumeration across secrets/keys/certificates, backup and restore to attacker-controlled vault, managed identity abuse for bulk secret retrieval, diagnostic logs exposing secret access patterns",
-        "privilege-escalation": "Stored secrets containing higher-privilege credentials (SQL admin, service principal secrets), certificate access enabling impersonation, key access enabling decryption of protected resources across Azure services"
+        "data-exfiltration": "Systematic List + Get enumeration across secrets/keys/certificates, Backup of keys and secrets then Restore into another vault in the same subscription and geography where the copy stays usable after the original is disabled, managed identity abuse for bulk secret retrieval",
+        "privilege-escalation": "Contributor or Key Vault Contributor editing an access-policy vault's access policies to grant itself Get/List on secrets, stored secrets containing higher-privilege credentials (SQL admin, service principal secrets), certificate access enabling impersonation, key access enabling decryption of protected resources"
       },
       "threatMitigations": {
         "credential-theft": [
@@ -1237,10 +1325,10 @@
           "Use managed identities for Key Vault access instead of distributing access keys or connection strings"
         ],
         "misconfiguration": [
-          "Enable soft-delete and purge-protection on all vaults to prevent accidental or malicious secret destruction",
+          "Enable purge protection on all key vaults",
           "Use Azure Policy (DeployIfNotExists) to enforce Private Endpoint, RBAC model, and soft-delete on all Key Vaults",
           "Configure network ACLs to restrict vault access to specific VNets, subnets, and trusted Azure services only",
-          "Enforce minimum TLS 1.2 and disable legacy access policy model via Azure Policy assignments"
+          "Assign the built-in Azure Policy requiring the Key Vault RBAC permission model with Deny, and require TLS 1.2 or later in clients"
         ],
         "excessive-permissions": [
           "Assign granular Key Vault RBAC roles (Secrets User, Key Reader, Certificate Reader) instead of broad Contributor or Owner",
@@ -1291,20 +1379,27 @@
         "credential-theft",
         "excessive-permissions",
         "misconfiguration",
-        "account-takeover"
+        "account-takeover",
+        "token-theft",
+        "oauth-token-abuse",
+        "hybrid-infrastructure-attack"
       ],
       "threatContext": {
-        "privilege-escalation": "Global Admin role abuse, application consent grant attacks, directory role escalation via PIM",
+        "privilege-escalation": "Global Admin elevating to User Access Administrator at root scope (elevateAccess), application consent grant attacks, Application Administrators adding secrets to privileged service principals, Privileged Authentication Administrator resetting admin credentials, role-assignable group owner abuse, PIM eligibility abuse",
         "credential-theft": "Password spray attacks, token replay via stolen cookies, primary refresh token (PRT) theft",
         "excessive-permissions": "Over-privileged application registrations, excessive Graph API permissions, legacy admin roles",
-        "account-takeover": "Credential stuffing via legacy auth protocols, phishing attacks targeting users without MFA, device join abuse for persistent access, help desk social engineering for password reset"
+        "account-takeover": "Credential stuffing via legacy auth protocols, phishing attacks targeting users without MFA, device join abuse for persistent access, help desk social engineering for password reset",
+        "token-theft": "AiTM phishing kits (Evilginx, Tycoon 2FA) replaying ESTSAUTH session cookies, device code phishing (Storm-2372) yielding refresh tokens, PRT and refresh-token theft from compromised Windows endpoints (ROADtools, AADInternals), FOCI family refresh tokens redeemed across Microsoft first-party apps",
+        "oauth-token-abuse": "Illicit consent grants to attacker multi-tenant apps requesting Mail.Read and offline_access, attacker-added secrets on existing service principals, a legacy test OAuth app abused to create apps granted Exchange full_access_as_app (Midnight Blizzard, 2024)",
+        "hybrid-infrastructure-attack": "Compromised Entra Connect server yielding sync account credentials (AADInternals), PTA agent hooks accepting any password, AD FS token-signing key theft for Golden SAML, rogue federated domains added to forge sign-ins (Midnight Blizzard, Storm-0501)"
       },
       "threatMitigations": {
         "privilege-escalation": [
           "Enable Privileged Identity Management (PIM) for just-in-time activation of all directory and Azure roles",
           "Configure admin consent workflow to prevent unauthorized application consent grant attacks",
           "Restrict Global Administrator role to a maximum of two break-glass accounts with hardware FIDO2 keys",
-          "Require MFA or a Conditional Access authentication context on activation in PIM role settings for all privileged roles"
+          "Require MFA or a Conditional Access authentication context on activation in PIM role settings for all privileged roles",
+          "Alert on Microsoft.Authorization/elevateAccess/action in directory activity logs and remove standing root-scope User Access Administrator assignments"
         ],
         "credential-theft": [
           "Enforce phishing-resistant MFA (FIDO2 security keys or certificate-based auth) for all users via Conditional Access",
@@ -1316,7 +1411,7 @@
           "Conduct quarterly access reviews using Microsoft Entra access reviews for all directory roles and application permissions",
           "Restrict application registration permissions and require admin consent for Graph API permissions above User.Read",
           "Replace legacy admin roles (User Administrator, Helpdesk Administrator) with scoped Administrative Units",
-          "Use Entra Permissions Management to identify and right-size over-privileged application registrations"
+          "Use Defender for Cloud Apps app governance to find over-privileged apps and remove unused Graph permissions and credentials"
         ],
         "misconfiguration": [
           "Enable Security Defaults or configure comprehensive Conditional Access policies covering all users and applications",
@@ -1328,7 +1423,25 @@
           "Enforce phishing-resistant MFA methods (FIDO2, Windows Hello, certificate-based) via Authentication Strengths in Conditional Access",
           "Enable Entra ID Protection with Sign-in Risk and User Risk policies set to block or require MFA at medium risk",
           "Configure Smart Lockout thresholds and banned password lists to prevent credential stuffing and password spray",
-          "Restrict self-service password reset to require multiple verification methods and enable identity verification for helpdesk"
+          "Restrict self-service password reset to require multiple verification methods and enable identity verification for helpdesk",
+          "After a takeover, revoke the user's sign-in sessions and remove attacker-registered authentication methods, inbox rules and app consents"
+        ],
+        "token-theft": [
+          "Enforce Conditional Access token protection for supported native apps on Windows",
+          "Block device code flow with a Conditional Access authentication flows policy, excluding only documented device scenarios",
+          "Require compliant or hybrid-joined devices in Conditional Access",
+          "Enable Continuous Access Evaluation strict location enforcement and revoke all user sessions when token theft is suspected"
+        ],
+        "oauth-token-abuse": [
+          "Restrict user consent to verified publishers and low-impact permissions, or disable it, and route other requests through the admin consent workflow",
+          "Alert on new app role assignments, delegated permission grants and service principal credential additions in Entra audit logs",
+          "Apply Conditional Access for workload identities to restrict single-tenant service principals to known IP ranges",
+          "On abuse, revoke the app's delegated and application permission grants, remove its credentials and disable the service principal"
+        ],
+        "hybrid-infrastructure-attack": [
+          "Treat Entra Connect, PTA agent and AD FS servers as Tier 0 and deploy Defender for Identity sensors on them",
+          "Migrate federated domains from AD FS to cloud authentication (password hash sync with phishing-resistant MFA)",
+          "Alert on new federated domains, federation setting changes and Directory Synchronization Accounts role activity in Entra audit logs"
         ]
       }
     },
@@ -1361,7 +1474,7 @@
           "Configure short token lifetimes and enforce refresh token rotation",
           "Use PKCE for all OAuth flows in SPAs and mobile apps",
           "Restrict redirect URIs to exact match patterns (no wildcards)",
-          "Enable continuous access evaluation for near-real-time token revocation"
+          "Set the refresh token sliding window lifetime to Bounded rather than No expiry"
         ],
         "broken-authentication": [
           "Enforce MFA via custom policy orchestration steps for all authentication flows",
@@ -1370,7 +1483,7 @@
           "Enable sign-in risk detection and block high-risk sign-ins"
         ],
         "misconfiguration": [
-          "Use Azure Policy to audit B2C tenant configurations and user flow settings",
+          "Manage user flows and custom policies as code deployed through a reviewed pipeline, and restrict who holds the B2C IEF Policy Administrator role",
           "Restrict custom policy upload permissions to authorized administrators only",
           "Configure API connectors with authentication and input validation",
           "Enable diagnostic settings for sign-in and audit log monitoring"
@@ -1401,7 +1514,8 @@
         "data-exfiltration",
         "third-party-integration-risk",
         "credential-theft",
-        "ai-model-extraction"
+        "ai-model-extraction",
+        "dos-attack"
       ],
       "threatContext": {
         "prompt-injection": "Indirect injection via connected data sources in agent workflows, prompt flow manipulation through crafted grounding data, multi-agent orchestration amplifying injection across agent chains",
@@ -1415,7 +1529,8 @@
         "data-exfiltration": "AI Foundry agents with tool connectors orchestrating multi-step data extraction across Azure Storage, Cosmos DB, and other data sources, prompt flow outputs aggregating sensitive data from multiple connected systems",
         "third-party-integration-risk": "MCP server connections to external services introducing trust dependencies on third-party tool providers, AI Foundry marketplace integrations accessing agent data and prompt flow configurations",
         "credential-theft": "Managed identity tokens exposed via Azure IMDS from AI Foundry compute, tool connector credentials stored in agent configurations, API keys for connected services accessible through prompt flow environment variables",
-        "ai-model-extraction": "Systematic querying of fine-tuned models deployed through AI Foundry to replicate specialized enterprise knowledge, embedding extraction through agent interactions revealing proprietary data patterns"
+        "ai-model-extraction": "Systematic querying of fine-tuned models deployed through AI Foundry to replicate specialized enterprise knowledge, embedding extraction through agent interactions revealing proprietary data patterns",
+        "dos-attack": "Agent loops repeatedly calling models and tools, tokens-per-minute quota exhaustion on shared model deployments, long-context requests driving pay-per-token cost"
       },
       "threatMitigations": {
         "prompt-injection": [
@@ -1434,7 +1549,8 @@
           "Scope managed identities used by AI Foundry agents to specific resource groups and actions with least-privilege RBAC",
           "Implement human-in-the-loop review for agent tool calls that modify Azure resources or access sensitive data",
           "Use AI Foundry observability to log and monitor all tool invocations with full parameter capture",
-          "Register MCP servers with explicit authentication and per-tool permission boundaries"
+          "Register MCP servers with explicit authentication and per-tool permission boundaries",
+          "Set MCP tools to require approval and use on-behalf-of (user identity passthrough) authentication for tools that support it"
         ],
         "ai-training-data-poisoning": [
           "Restrict Azure Blob Storage access for fine-tuning datasets using managed identity with read-only RBAC roles",
@@ -1470,7 +1586,7 @@
         ],
         "third-party-integration-risk": [
           "Audit all MCP server registrations and require security review before connecting agents to third-party tool providers",
-          "Use network security groups to restrict which external endpoints AI Foundry agents can communicate with",
+          "Restrict agent outbound traffic to approved endpoints with managed network approved-outbound FQDN rules or Azure Firewall",
           "Monitor tool connector traffic patterns in Azure Monitor for unexpected data flows to third-party endpoints",
           "Restrict AI Foundry marketplace integration installations to admin-approved integrations only"
         ],
@@ -1478,13 +1594,18 @@
           "Use managed identities with least-privilege RBAC for all AI Foundry resource access instead of stored credentials",
           "Store tool connector credentials in Azure Key Vault and reference them via AI Foundry secret references",
           "Configure private endpoints for AI Foundry to prevent credential exposure on public networks",
-          "Monitor Azure Activity Log for managed identity token acquisition patterns from AI Foundry resources"
+          "Monitor Entra ID managed identity sign-in logs for token requests from unexpected resources or locations"
         ],
         "ai-model-extraction": [
           "Configure per-deployment rate limits on AI Foundry model endpoints to prevent systematic querying",
           "Enable Azure Monitor alerts for anomalous API usage patterns indicating model extraction attempts",
           "Use private endpoints for AI Foundry model deployments to restrict access to authorized networks",
           "Monitor prompt flow invocation volumes and patterns for extraction-style query behavior"
+        ],
+        "dos-attack": [
+          "Set tokens-per-minute limits on each model deployment and separate deployments per workload to isolate quota consumption",
+          "Use the Azure API Management AI gateway llm-token-limit policy to cap tokens per caller in front of Foundry endpoints",
+          "Configure Azure Cost Management budgets and alerts on the Foundry resource and connected model deployments"
         ]
       }
     },
@@ -1501,16 +1622,17 @@
         "credential-theft"
       ],
       "threatContext": {
-        "privilege-escalation": "IMDS token theft from compromised VMs (http://169.254.169.254), user-assigned identity hopping between resources",
+        "privilege-escalation": "Contributor on a VM or App Service running code (Run Command, Kudu) to take its identity's token, Managed Identity Operator (assign/action) attaching a privileged identity to an attacker-controlled resource, adding a federated credential trusting an attacker's issuer, identities holding Owner or User Access Administrator granting themselves roles",
         "excessive-permissions": "Over-scoped RBAC role assignments, subscription-wide contributor access, unused identity permissions",
-        "credential-theft": "IMDS endpoint abuse (http://169.254.169.254) from compromised VMs, user-assigned identity tokens stolen from one resource to access others, federated identity credential interception"
+        "credential-theft": "IMDS (169.254.169.254) token requests from compromised VMs or via SSRF, IDENTITY_ENDPOINT and IDENTITY_HEADER read from App Service, Functions or Container Apps environments, user-assigned identity tokens reused across resources, federated identity credentials trusting an attacker-controlled issuer"
       },
       "threatMitigations": {
         "privilege-escalation": [
           "Use system-assigned identities tied to a single resource instead of shared user-assigned identities",
           "Restrict IMDS access inside the guest OS with host firewall rules (Windows Firewall, iptables owner match) limited to processes that need tokens; NSGs cannot filter IMDS traffic",
           "Scope RBAC role assignments to specific resource groups or resources instead of subscriptions",
-          "Enable Microsoft Defender for Resource Manager to detect identity abuse patterns"
+          "Enable Microsoft Defender for Resource Manager to detect identity abuse patterns",
+          "Restrict Managed Identity Operator and federatedIdentityCredentials/write, and limit identities' role-assignment rights with RBAC Administrator conditions"
         ],
         "excessive-permissions": [
           "Use Entra ID access reviews to periodically audit managed identity RBAC assignments",
@@ -1522,7 +1644,7 @@
           "Use Azure Policy to enforce managed identity usage over credential-based authentication",
           "Restrict user-assigned identity assignment permissions via Azure RBAC",
           "Configure federated identity credentials with strict subject and issuer validation",
-          "Enable diagnostic settings to monitor identity token acquisition patterns"
+          "Export Entra managed identity sign-in logs via Entra diagnostic settings and alert on token requests from unexpected resources"
         ],
         "credential-theft": [
           "Prefer system-assigned identities to limit token scope to a single resource",
@@ -1552,7 +1674,7 @@
         "data-exfiltration": "Unmonitored egress via NAT Gateway, VNet peering to attacker-controlled subscriptions, ExpressRoute/VPN to untrusted networks, service endpoint routing to external storage",
         "lateral-movement": "Flat network without subnet segmentation, NSG allowing all internal traffic, VNet peering enabling cross-VNet pivoting, hub-spoke model hub compromise",
         "misconfiguration": "Default VNet without proper NSG association, service endpoints exposing resources to all Azure services, Private Link/Private Endpoint not enforced for PaaS services, Network Watcher not enabled in all regions",
-        "audit-logging-bypass": "NSG flow logs disabled, Network Watcher not provisioned, diagnostic settings not configured for VNet Gateway or NAT Gateway, traffic analytics disabled"
+        "audit-logging-bypass": "NSG and VNet flow logs disabled or not migrated (NSG flow logs cannot be created since June 2025 and retire September 2027), Network Watcher not provisioned, diagnostic settings not configured for VNet Gateway or NAT Gateway, traffic analytics disabled"
       },
       "threatMitigations": {
         "network-misconfiguration": [
@@ -1565,7 +1687,7 @@
           "Use Private Endpoints instead of service endpoints for PaaS service access",
           "Restrict VNet peering creation permissions and enforce approval workflows via Azure RBAC",
           "Configure service endpoint policies to restrict traffic to specific resource instances",
-          "Enable Network Watcher NSG flow logs for network access visibility"
+          "Enable Network Watcher VNet flow logs for network access visibility"
         ],
         "data-exfiltration": [
           "Configure Azure Firewall or NVA for centralized egress filtering and logging",
@@ -1586,10 +1708,10 @@
           "Use Azure Policy to deny creation of VNets without proper NSG and UDR associations"
         ],
         "audit-logging-bypass": [
-          "Enable NSG flow logs via Azure Policy DeployIfNotExists across all NSGs",
+          "Enable VNet flow logs via Azure Policy DeployIfNotExists and migrate existing NSG flow logs to them",
           "Configure Traffic Analytics with Log Analytics workspace for centralized visibility",
           "Enable diagnostic settings on VNet Gateways and NAT Gateways for connection logging",
-          "Configure Activity Log alerts for NSG flow log deletion or modification"
+          "Configure Activity Log alerts for VNet flow log deletion or modification"
         ]
       }
     },
@@ -1600,27 +1722,26 @@
       "category": "networking",
       "description": "API gateway and management",
       "threatIds": [
-        "injection-attack",
+        "query-injection",
         "dos-attack",
         "broken-authentication",
         "sensitive-data-exposure",
-        "misconfiguration"
+        "misconfiguration",
+        "unauthorized-access"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
-        "injection-attack": "Policy expression injection in set-body/rewrite-uri, backend URL manipulation, XPath/XQuery injection in XML transformations, Liquid template injection",
+        "query-injection": "XPath/XQuery injection where request input reaches xsl-transform stylesheets or XML backends, header injection via set-header with raw request data, OData or query passthrough to backends, policy expressions concatenating request input into backend URLs",
         "dos-attack": "Rate limit policy bypass, subscription quota exhaustion, backend overload through policy misconfiguration, WebSocket connection flooding",
         "broken-authentication": "Subscription key exposure, OAuth validation policy bypass, client certificate authentication misconfiguration, JWT validation gaps in validate-jwt policy",
         "sensitive-data-exposure": "Diagnostic logs capturing request/response bodies, named values storing secrets without Key Vault, trace debugging exposing sensitive data, developer portal API documentation leaking schemas",
-        "misconfiguration": "Developer portal exposing sensitive API documentation, self-hosted gateway without proper monitoring, backend protocol set to HTTP instead of HTTPS, CORS policy allowing wildcard origins, named values containing secrets not backed by Key Vault, missing virtual network integration for internal backends"
+        "misconfiguration": "Developer portal exposing sensitive API documentation, self-hosted gateway without proper monitoring, backend protocol set to HTTP instead of HTTPS, CORS policy allowing wildcard origins, named values containing secrets not backed by Key Vault, missing virtual network integration for internal backends",
+        "unauthorized-access": "APIs with subscription required disabled and no validate-jwt, products published as open, developer portal self sign-up granting subscriptions, backends reachable directly bypassing APIM, overly broad Contributor access to the APIM instance letting users rewrite policies"
       },
       "threatMitigations": {
-        "injection-attack": [
+        "query-injection": [
           "Use validate-content policy to enforce JSON/XML schema validation on request bodies",
           "Sanitize inputs in set-body and rewrite-uri policy expressions to prevent injection",
-          "Configure find-and-replace policy to strip dangerous characters from request parameters",
+          "Use xsl-transform only with static stylesheets and never build XPath expressions or XSLT parameters from raw request input",
           "Use the validate-parameters policy to enforce expected query and header parameter formats"
         ],
         "dos-attack": [
@@ -1631,7 +1752,7 @@
         ],
         "broken-authentication": [
           "Use validate-jwt policy with strict issuer, audience, and required claims validation",
-          "Store subscription keys in Key Vault and rotate regularly via named values",
+          "Regenerate subscription keys on a schedule and pair them with validate-jwt or client certificates rather than using them alone",
           "Require client certificate authentication with certificate validation policies",
           "Configure OAuth 2.0 authorization server integration with Entra ID"
         ],
@@ -1646,6 +1767,12 @@
           "Use Azure Policy to enforce HTTPS-only backend connections and minimum TLS versions",
           "Configure CORS policies with explicit allowed origins instead of wildcards",
           "Enable diagnostic settings with Log Analytics for API-level monitoring and alerting"
+        ],
+        "unauthorized-access": [
+          "Require a subscription or validate-jwt on every API and add an All APIs policy that rejects requests without valid credentials",
+          "Restrict backends to accept traffic only from APIM via VNet integration, private endpoints or an APIM client certificate",
+          "Disable developer portal self sign-up and require administrator approval on products that grant subscriptions",
+          "Grant APIM management access through least-privilege Azure RBAC roles and alert on policy changes in the Activity Log"
         ]
       }
     },
@@ -1661,30 +1788,27 @@
         "dos-attack",
         "sensitive-data-exposure"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
-        "cache-poisoning": "Cache key manipulation via query strings, Host header injection caching malicious responses, Rules Engine abuse for cache manipulation, cache poisoning through unkeyed headers",
-        "misconfiguration": "Missing WAF policy association, origin not validating Front Door header (X-Azure-FDID), routing rules exposing internal origins, TLS 1.0/1.1 enabled on minimum TLS version",
+        "cache-poisoning": "Front Door keys its cache on URL path and query string, so request headers the origin reflects (X-Original-URL, X-HTTP-Method-Override, custom headers) are unkeyed and one poisoned JS or HTML object is served to every user of that edge (mass XSS). Query string Ignore behaviour widens collisions. Web cache deception: extension-based caching rules cache /profile/x.css when the origin ignores the suffix, leaking other users' pages.",
+        "misconfiguration": "Missing WAF policy association, origin not validating X-Azure-FDID or not locked to the AzureFrontDoor.Backend service tag, routing rules exposing internal origins, routes accepting HTTP without HTTPS redirect, dangling CNAMEs to deleted *.azurefd.net endpoints enabling subdomain takeover",
         "dos-attack": "Origin overload bypassing edge caching, Rules Engine resource exhaustion, health probe manipulation, large file requests to origin",
         "sensitive-data-exposure": "Cached responses containing user-specific data, diagnostic logs with PII, custom domains without proper certificate management, origin response headers exposing backend details"
       },
       "threatMitigations": {
         "cache-poisoning": [
           "Configure cache key query string behavior to include only expected parameters",
-          "Use Rules Engine to normalize and validate Host headers before caching",
-          "Configure separate cache keys for authenticated vs anonymous responses",
+          "Use rule set Modify request header actions to delete headers the origin reflects but Front Door does not key on (e.g. X-Original-URL)",
+          "Disable caching on routes serving authenticated content and send Cache-Control: private or no-store from the origin",
           "Enable Azure Monitor alerts for unusual cache hit/miss ratio changes"
         ],
         "misconfiguration": [
           "Associate WAF policy in Prevention mode on all Front Door endpoints",
           "Validate X-Azure-FDID header at the origin to reject direct access bypassing Front Door",
-          "Enforce minimum TLS 1.2 via Azure Policy on all Front Door profiles",
+          "Set routes to accept HTTPS only or enable Redirect all traffic to use HTTPS, and forward to origins over HTTPS only",
           "Use Private Link origins to restrict backend access to Front Door only"
         ],
         "dos-attack": [
-          "Enable DDoS Protection Standard on Front Door with built-in layer 7 protection",
+          "Add Front Door WAF rate-limit custom rules for layer 7 floods",
           "Configure WAF rate limiting rules per client IP or geographic region",
           "Set response timeout and health probe intervals to prevent origin overload",
           "Use caching rules to serve static content from edge and reduce origin load"
@@ -1693,7 +1817,7 @@
           "Configure Cache-Control headers to prevent caching of user-specific responses",
           "Use Rules Engine to strip sensitive response headers before reaching clients",
           "Enable managed certificates with automatic rotation for custom domains",
-          "Configure diagnostic settings with PII redaction for access and WAF logs"
+          "Enable Front Door WAF log scrubbing for sensitive request fields and restrict access to diagnostic log destinations"
         ]
       }
     },
@@ -1710,9 +1834,6 @@
         "network-misconfiguration",
         "sensitive-data-exposure"
       ],
-      "connectionSecurity": {
-        "enforcesEncryption": true
-      },
       "threatContext": {
         "misconfiguration": "WAF in detection mode instead of prevention, deprecated SSL policy allowing weak ciphers, backend pool health probe misconfiguration, URL path-based routing exposing unintended backends",
         "dos-attack": "Connection draining abuse, backend pool exhaustion, HTTP/2 concurrent streams attack, slow HTTP attacks exhausting connections",
@@ -1734,7 +1855,7 @@
           "Use autoscaling with maximum instance limits to absorb traffic spikes"
         ],
         "query-injection": [
-          "Enable WAF in Prevention mode with SQL injection and XSS rule groups",
+          "Enable WAF_v2 in Prevention mode with the DRS/CRS protocol-enforcement and protocol-attack rule groups",
           "Validate rewrite rule expressions to prevent header injection patterns",
           "Configure request size limits and file upload restrictions in WAF policy",
           "Use URL path map routing with strict path patterns to prevent traversal"
@@ -1747,7 +1868,7 @@
         ],
         "sensitive-data-exposure": [
           "Store SSL certificates in Key Vault with managed identity access instead of local upload",
-          "Configure WAF exclusion rules to prevent logging of sensitive request fields",
+          "Enable WAF policy log scrubbing for passwords, tokens and other sensitive fields",
           "Restrict diagnostic log access via Log Analytics workspace RBAC",
           "Use end-to-end TLS to encrypt traffic between Application Gateway and backends"
         ]
@@ -1786,7 +1907,7 @@
           "Enforce NSG rules on backend subnets to allow inbound traffic only from the load balancer frontend IP",
           "Use Azure Policy to deny public IP assignment on backend pool VMs behind a public load balancer",
           "Restrict internal load balancer access to specific subnets using NSG rules on the frontend subnet",
-          "Enable Network Watcher NSG flow logs to audit traffic patterns to and from load balancer backends"
+          "Enable Network Watcher VNet flow logs to audit traffic patterns to and from load balancer backends"
         ]
       }
     },
@@ -1804,7 +1925,7 @@
         "dos-attack"
       ],
       "threatContext": {
-        "misconfiguration": "Overly permissive application rules with wildcard FQDNs, DNAT rules exposing internal services, threat intelligence filtering disabled, missing TLS inspection for encrypted traffic",
+        "misconfiguration": "Threat Intelligence filtering or Premium IDPS left in Alert-only or Off mode, DNS proxy disabled so FQDN network rules resolve differently from clients, missing TLS inspection on Premium, Basic/Standard SKU deployed where IDPS is required, wildcard FQDN application rules",
         "network-misconfiguration": "Network rules allowing broad IP ranges, priority ordering allowing bypass rules, route table not forcing traffic through firewall, hub VNet peering without UDR",
         "unauthorized-access": "Firewall Policy inheritance allowing unintended rule propagation, RBAC misconfiguration on Firewall Manager, IP Groups containing unvalidated entries",
         "audit-logging-bypass": "Diagnostic settings removed preventing log delivery, Azure Firewall log categories disabled (AzureFirewallApplicationRule, AzureFirewallNetworkRule, AzureFirewallDnsProxy), Structured Logs not enabled, Firewall Workbook data gaps",
@@ -1815,7 +1936,8 @@
           "Use Azure Firewall Policy with rule collection groups to enforce consistent rule hierarchies across firewalls",
           "Enable Threat Intelligence-based filtering in Alert and Deny mode to block known malicious IPs and FQDNs",
           "Configure TLS inspection for outbound traffic to detect threats hidden in encrypted channels",
-          "Use Azure Policy to audit firewall rules containing wildcard FQDNs or overly broad IP ranges"
+          "Use Azure Policy to audit firewall rules containing wildcard FQDNs or overly broad IP ranges",
+          "Enable Premium IDPS in Alert and Deny mode and turn on DNS proxy"
         ],
         "network-misconfiguration": [
           "Enforce User-Defined Routes (UDRs) on all spoke subnets to force traffic through Azure Firewall",
@@ -1895,12 +2017,12 @@
       "threatContext": {
         "misconfiguration": "Dangling DNS records pointing to deallocated resources (subdomain takeover), wildcard records exposing internal services, alias records to deleted resources, missing CAA records for certificate control",
         "dos-attack": "DNS query flooding against hosted zones, DNSSEC validation overhead exploitation",
-        "unauthorized-access": "RBAC misconfiguration allowing zone modification, Private DNS zone link abuse, DNS resolver forwarding rule manipulation for hijacking, zone transfer to unauthorized parties",
+        "unauthorized-access": "RBAC misconfiguration allowing zone or record-set modification, Private DNS zone virtual network link abuse, DNS Private Resolver forwarding ruleset manipulation for hijacking, dangling NS delegation to a deleted child zone (Azure DNS does not support zone transfers, so AXFR is not a vector)",
         "sensitive-data-exposure": "DNS query logs revealing internal service names and infrastructure, Private DNS zone records exposing internal architecture, diagnostic logs containing query patterns"
       },
       "threatMitigations": {
         "misconfiguration": [
-          "Use Microsoft Defender for DNS to detect dangling DNS entries and subdomain takeover risks",
+          "Enable Microsoft Defender for App Service dangling DNS alerts and use Azure DNS alias records for Azure resources",
           "Implement automated scanning for dangling CNAME records pointing to deallocated Azure resources",
           "Configure CAA records on DNS zones to restrict which certificate authorities can issue certificates for your domains",
           "Use Azure Policy to audit DNS zones for wildcard records and enforce naming conventions"
@@ -1935,6 +2057,9 @@
         "dos-attack",
         "misconfiguration"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "message-tampering": "Message body modification via compromised SAS token, session state manipulation in session-enabled queues, dead-letter queue message injection, scheduled message tampering",
         "unauthorized-access": "Shared Access Signature (SAS) token exposure with Send/Listen/Manage permissions, connection string leakage, Entra ID RBAC misconfiguration allowing unauthorized namespace access",
@@ -1978,13 +2103,18 @@
         "stream-hijacking",
         "unauthorized-access",
         "data-exfiltration",
-        "misconfiguration"
+        "misconfiguration",
+        "dos-attack"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "stream-hijacking": "Consumer group impersonation via stolen SAS credentials, partition key manipulation for selective data interception, checkpoint store poisoning causing data replay or loss",
         "unauthorized-access": "SAS token with Send/Listen permissions exposed, connection string leakage in application configs, Kafka endpoint access without proper SASL authentication",
         "data-exfiltration": "Capture feature storing events to attacker-controlled Storage/Data Lake, consumer application bulk event extraction, Schema Registry data exposure",
-        "misconfiguration": "Public network access without IP filtering, missing customer-managed key encryption, Capture destination with overly permissive access, Kafka protocol enabled without proper authentication"
+        "misconfiguration": "Public network access without IP filtering, missing customer-managed key encryption, Capture destination with overly permissive access, Kafka protocol enabled without proper authentication",
+        "dos-attack": "Producer flood exhausting throughput units or processing units so other publishers get ServerBusy/throttled errors, Kafka-endpoint clients creating partitions or connections up to namespace quotas, auto-inflate raising cost"
       },
       "threatMitigations": {
         "stream-hijacking": [
@@ -2010,6 +2140,11 @@
           "Enable customer-managed key (CMK) encryption at the namespace level for data at rest protection",
           "Configure Capture destinations with dedicated storage accounts secured by Private Endpoints and minimal RBAC",
           "Use Azure Policy to enforce minimum TLS version and disable local authentication on namespaces"
+        ],
+        "dos-attack": [
+          "Scope Event Hubs Data Sender to specific producer identities and disable SAS authentication",
+          "On Premium or Dedicated namespaces, configure application groups with throttling policies to cap publish and consume rates per client application",
+          "Set an auto-inflate maximum throughput unit limit and alert on the ThrottledRequests and ServerErrors metrics"
         ]
       }
     },
@@ -2040,7 +2175,7 @@
         ],
         "misconfiguration": [
           "Enforce Entra ID delivery authentication on all webhook event subscriptions instead of relying on validation handshake alone",
-          "Configure automatic access key rotation using Azure Automation or Key Vault managed rotation",
+          "Rotate topic access keys on a schedule with Azure Automation or Functions, or disable local authentication",
           "Use event subscription filters with specific event types and subject prefixes to limit event delivery scope",
           "Configure dead-letter destinations on all event subscriptions to capture failed deliveries for analysis"
         ],
@@ -2072,8 +2207,8 @@
       ],
       "threatContext": {
         "message-tampering": "Message content modification via stolen storage account key, poison message injection causing consumer failures, message metadata manipulation affecting processing logic",
-        "unauthorized-access": "Storage account key exposure granting full queue access, SAS token with overly broad permissions (process, add, update), anonymous access enabled on storage account",
-        "dos-attack": "Message flooding reaching 500 TiB storage limit, large message payloads (up to 64KB) consuming bandwidth, visibility timeout manipulation causing reprocessing",
+        "unauthorized-access": "Storage account key exposure granting full queue access, SAS tokens with overly broad permissions (add, update, process) or long expiry, account SAS spanning queues and other services, public network access without firewall rules",
+        "dos-attack": "Message flooding up to the storage account capacity limit, payloads up to 64 KiB consuming bandwidth, visibility timeout manipulation causing reprocessing, account-wide request throttling (503 ServerBusy) shared with blobs and tables",
         "misconfiguration": "Storage account without secure transfer required (HTTPS), missing customer-managed key encryption, public network access without IP restrictions, shared key authorization not disabled"
       },
       "threatMitigations": {
@@ -2110,28 +2245,22 @@
       "category": "messaging",
       "description": "Real-time analytics on streaming data",
       "threatIds": [
-        "stream-hijacking",
         "unauthorized-access",
         "data-exfiltration",
-        "misconfiguration"
+        "misconfiguration",
+        "etl-pipeline-manipulation"
       ],
       "threatContext": {
-        "stream-hijacking": "Query manipulation to alter data transformations, input source credential theft for upstream interception, reference data poisoning affecting join operations",
         "unauthorized-access": "Job managed identity with excessive permissions to inputs/outputs, connection string exposure in job configuration, Entra ID RBAC misconfiguration allowing job modification",
         "data-exfiltration": "Output sink modification to attacker-controlled Blob Storage/SQL/Power BI, query results redirected via malicious UDF, reference data containing sensitive information",
-        "misconfiguration": "Job running with public endpoint access, missing diagnostic logging, UDFs with arbitrary code execution capabilities, cluster without VNet integration exposing data paths"
+        "misconfiguration": "Job running with public endpoint access, missing diagnostic logging, UDFs with arbitrary code execution capabilities, cluster without VNet integration exposing data paths",
+        "etl-pipeline-manipulation": "Job query or JavaScript/C# UDF modified to alter transformations, outputs repointed to attacker-controlled Blob Storage, SQL or Event Hubs, reference data in Blob Storage poisoned to corrupt joins, job identity reused to read inputs"
       },
       "threatMitigations": {
-        "stream-hijacking": [
-          "Use Managed Identity for input/output authentication instead of connection strings or shared keys",
-          "Restrict job modification permissions using Azure RBAC to separate job operators from job authors",
-          "Enable diagnostic logging to detect unauthorized query changes or reference data modifications",
-          "Configure Private Endpoints for Stream Analytics clusters to isolate data paths from public networks"
-        ],
         "unauthorized-access": [
           "Use Managed Identity with least-privilege RBAC assignments for all input and output connections",
           "Enforce Azure RBAC to separate Stream Analytics Operator (start/stop) from Contributor (query modification)",
-          "Configure Private Endpoints on Stream Analytics clusters to prevent public network access",
+          "Use cluster managed private endpoints for outbound connections to inputs and outputs, and disable public access on those resources",
           "Enable Azure Activity Log alerts for job configuration changes and credential access events"
         ],
         "data-exfiltration": [
@@ -2145,6 +2274,11 @@
           "Enable diagnostic settings to stream job logs to Log Analytics for monitoring and alerting",
           "Use Azure Policy to enforce required diagnostic settings and network configurations on all Stream Analytics jobs",
           "Restrict JavaScript UDF usage and enforce code review for UDF scripts as part of deployment pipelines"
+        ],
+        "etl-pipeline-manipulation": [
+          "Restrict job edit rights (Microsoft.StreamAnalytics/streamingjobs/write) to deployment identities and deploy queries via CI/CD",
+          "Use managed identity with least-privilege roles on each output",
+          "Alert on Activity Log write operations to Stream Analytics jobs, outputs, inputs and functions"
         ]
       }
     },
@@ -2157,12 +2291,14 @@
       "threatIds": [
         "log-tampering",
         "misconfiguration",
-        "sensitive-data-exposure"
+        "sensitive-data-exposure",
+        "audit-logging-bypass"
       ],
       "threatContext": {
         "log-tampering": "Diagnostic settings deletion, Log Analytics workspace purge operations, data collection rule manipulation, action group modification to suppress alerts",
         "misconfiguration": "Missing diagnostic settings for critical resources, Log Analytics workspace without data retention policies, alert rules disabled, autoscale notifications not configured",
-        "sensitive-data-exposure": "PII in custom logs and metrics, workbook queries exposing sensitive data, shared dashboards revealing internal metrics, alert emails containing sensitive context"
+        "sensitive-data-exposure": "PII in custom logs and metrics, workbook queries exposing sensitive data, shared dashboards revealing internal metrics, alert emails containing sensitive context",
+        "audit-logging-bypass": "Diagnostic settings deleted or edited to drop log categories, data collection rules or associations removed so agents stop sending, ingestion-time transformations added that filter security events, Activity Log export to the workspace removed"
       },
       "threatMitigations": {
         "log-tampering": [
@@ -2182,6 +2318,12 @@
           "Restrict workbook and dashboard sharing to specific Azure AD security groups using workspace-level RBAC",
           "Use Log Analytics workspace data export rules with encrypted destinations to control where log data flows",
           "Configure action group notification templates to exclude sensitive context from alert emails"
+        ],
+        "audit-logging-bypass": [
+          "Use Azure Policy DeployIfNotExists to recreate diagnostic settings and data collection rule associations removed from resources",
+          "Alert on Activity Log events for diagnosticSettings/delete, dataCollectionRules/write and dataCollectionRuleAssociations/delete",
+          "Alert on ingestion drops per table or per resource using the Usage and Heartbeat tables in Log Analytics",
+          "Restrict Monitoring Contributor and Log Analytics Contributor roles to a platform team via PIM"
         ]
       }
     },
@@ -2199,7 +2341,7 @@
       ],
       "threatContext": {
         "log-tampering": "Workspace data purge via Purge API, table retention reduction, workspace deletion, data collection endpoint manipulation redirecting logs",
-        "misconfiguration": "Workspace without customer-managed keys, overly permissive workspace access (Reader instead of Log Analytics Reader), missing data export rules for SIEM, ingestion-time transformations dropping security logs",
+        "misconfiguration": "Workspace without customer-managed keys (dedicated cluster), Reader or Log Analytics Reader granted where both include */read and so query every table, missing data export rules for SIEM, ingestion-time transformations dropping security logs",
         "sensitive-data-exposure": "KQL queries exposing PII in logs, saved functions containing sensitive logic, workbooks shared with external users, exported data to unprotected storage",
         "audit-logging-bypass": "Diagnostic settings removed for Azure resources, data collection rules disabled, workspace linked services removed disconnecting data sources, table retention set to minimum"
       },
@@ -2212,7 +2354,7 @@
         ],
         "misconfiguration": [
           "Enable customer-managed key (CMK) encryption on the Log Analytics workspace for data at rest protection",
-          "Assign Log Analytics Reader role instead of broad Reader for users who only need query access",
+          "Assign Log Analytics Data Reader with granular RBAC table or row conditions instead of Reader or Log Analytics Reader",
           "Configure data export rules to stream security-critical tables to Microsoft Sentinel or external SIEM in near real-time",
           "Use Azure Policy to enforce workspace retention periods and required data collection rules across subscriptions"
         ],
@@ -2239,12 +2381,14 @@
       "threatIds": [
         "misconfiguration",
         "audit-logging-bypass",
-        "log-tampering"
+        "log-tampering",
+        "sensitive-data-exposure"
       ],
       "threatContext": {
         "misconfiguration": "Data connectors not enabled for critical sources, analytics rules disabled or with excessive thresholds, automation rules not configured, threat intelligence feeds not integrated, UEBA not enabled",
         "audit-logging-bypass": "Analytics rules disabled to stop detection, automation rules modified to suppress incidents, data connector disconnection, watchlists manipulated to whitelist malicious indicators, incidents closed without investigation",
-        "log-tampering": "Data connector manipulation dropping logs, analytics rule logic modified to miss detections, entity timeline data purged, hunting query results deleted, incident evidence removed"
+        "log-tampering": "Data connector manipulation dropping logs, analytics rule logic modified to miss detections, entity timeline data purged, hunting query results deleted, incident evidence removed",
+        "sensitive-data-exposure": "A SIEM aggregates sign-in logs, identity events, email and endpoint telemetry from across the tenant; any analyst, guest or playbook identity with workspace read access can mine credentials, PII and security gaps"
       },
       "threatMitigations": {
         "misconfiguration": [
@@ -2257,13 +2401,19 @@
           "Configure Azure Monitor alerts for Sentinel analytics rule disable events and data connector disconnections",
           "Restrict Sentinel Contributor and Responder roles to dedicated SOC analysts using Azure RBAC",
           "Enable automation rules for incident assignment and escalation to prevent incidents from being silently closed",
-          "Use watchlist change tracking and audit Sentinel workspace Activity Logs for unauthorized configuration modifications"
+          "Use watchlist change tracking and audit Sentinel workspace Activity Logs for unauthorized configuration modifications",
+          "Enable Sentinel health monitoring (SentinelHealth table) and alert on data connector failures or per-table ingestion drops"
         ],
         "log-tampering": [
           "Restrict Sentinel workspace write permissions to prevent unauthorized analytics rule or connector modifications",
           "Enable resource locks on the underlying Log Analytics workspace to prevent deletion of log data",
           "Configure data export rules to send security-critical logs to a secondary immutable storage for forensic preservation",
           "Use Azure Activity Log alerts to detect modifications to Sentinel data connectors and analytics rules"
+        ],
+        "sensitive-data-exposure": [
+          "Use table-level or granular RBAC to limit SigninLogs, AuditLogs, SecurityEvent and other identity tables to SOC analysts",
+          "Grant Microsoft Sentinel Reader and Responder roles only to SOC staff, time-bound via Entra PIM",
+          "Restrict access to playbook (Logic Apps) run history"
         ]
       }
     },
@@ -2279,12 +2429,12 @@
       ],
       "threatContext": {
         "misconfiguration": "Defender plans disabled for workloads (Servers, Storage, SQL), auto-provisioning not enabled for agents, security policy assignments overridden with exemptions, continuous export not configured",
-        "audit-logging-bypass": "Security alerts dismissed without investigation, recommendations suppressed via exemptions, Defender plan disabled to stop detection, workflow automation disabled to prevent response"
+        "audit-logging-bypass": "Security alerts dismissed, alert suppression rules created to auto-dismiss future alerts, recommendations exempted, Defender plans downgraded to Free, Defender for Endpoint integration turned off, workflow automation disabled"
       },
       "threatMitigations": {
         "misconfiguration": [
           "Enable all Defender plans (Servers, Storage, SQL, App Service, Key Vault, Containers, ARM) across all subscriptions using Azure Policy",
-          "Configure auto-provisioning for the Log Analytics agent and Defender sensors on all applicable resources",
+          "Enable Defender for Endpoint integration and agentless machine scanning for Defender for Servers, and auto-provision the Defender sensor for Containers",
           "Use Azure Policy to deny security policy exemptions without an approval workflow and expiration date",
           "Enable continuous export to Log Analytics and Event Hubs for integration with SIEM and ticketing systems"
         ],
@@ -2292,7 +2442,8 @@
           "Configure Azure Monitor alerts for Defender plan status changes and agent provisioning failures",
           "Restrict Security Admin and Contributor roles using Azure RBAC to prevent unauthorized alert dismissal or exemption creation",
           "Enable workflow automation to auto-assign security alerts to SOC teams and prevent silent closure",
-          "Use Azure Policy to audit and remediate subscriptions where Defender plans are disabled or downgraded"
+          "Use Azure Policy to audit and remediate subscriptions where Defender plans are disabled or downgraded",
+          "Alert on Activity Log writes to Microsoft.Security/alertsSuppressionRules and on Defender plan pricing tier changes"
         ]
       }
     },
@@ -2307,14 +2458,14 @@
         "sensitive-data-exposure"
       ],
       "threatContext": {
-        "misconfiguration": "Instrumentation key exposed in client-side code allowing telemetry injection, sampling rate too aggressive missing errors, workspace-based migration incomplete losing data, IP masking disabled",
+        "misconfiguration": "Connection string or instrumentation key exposed in browser JavaScript lets anyone send spoofed telemetry while local authentication is enabled, sampling too aggressive dropping errors, IP masking disabled storing client IPs",
         "sensitive-data-exposure": "Custom events/traces containing PII, request/response bodies logged with credentials, exception messages revealing internal data, user_Id tracking enabling user profiling, custom dimensions with sensitive business data"
       },
       "threatMitigations": {
         "misconfiguration": [
-          "Use connection strings with Entra ID authentication instead of instrumentation keys to prevent telemetry injection from unauthorized sources",
+          "Enable Microsoft Entra ID authentication for ingestion and disable local authentication; send browser telemetry to a separate resource",
           "Configure adaptive sampling rates to balance data volume with error visibility and set explicit sampling exclusions for critical telemetry",
-          "Migrate to workspace-based Application Insights and enable IP masking to anonymize client IP addresses in logs",
+          "Keep IP masking enabled (DisableIpMasking=false) and send telemetry to a Log Analytics workspace with access restricted to authorised teams",
           "Use Azure Policy to audit Application Insights resources for workspace-based configuration and proper authentication settings"
         ],
         "sensitive-data-exposure": [
@@ -2349,7 +2500,8 @@
         "credential-theft": "Pool managed identity credential theft, auto-storage account key exposure, task environment variable leakage",
         "supply-chain-attack": "Malicious application packages, compromised container images in task definitions",
         "lateral-movement": "Compromised batch pool nodes pivoting to other VNet resources, compute nodes used for internal network enumeration",
-        "data-exfiltration": "Task output redirection to attacker-controlled Blob Storage, batch job egress to external endpoints, auto-storage account data theft"
+        "data-exfiltration": "Task output redirection to attacker-controlled Blob Storage, batch job egress to external endpoints, auto-storage account data theft",
+        "batch-job-tampering": "Altered task command lines, start tasks or application package versions running attacker code on every pool node, job schedules launching cryptomining tasks, start task changes for persistence"
       },
       "threatMitigations": {
         "batch-job-tampering": [
@@ -2362,7 +2514,7 @@
           "Use Azure Policy to enforce Private Endpoint connectivity on Batch accounts and deny public network access",
           "Configure pool allocation mode as Batch service managed with VNet integration for network isolation",
           "Enable Batch account diagnostic settings to route logs to Log Analytics for monitoring and alerting",
-          "Restrict pool node communication mode to simplified or classic with NSG rules to limit exposure"
+          "Use the simplified node communication mode with NSG rules to limit pool exposure"
         ],
         "excessive-permissions": [
           "Scope Batch account Managed Identity RBAC assignments to specific storage accounts and resources required by jobs",
@@ -2384,7 +2536,7 @@
         ],
         "dos-attack": [
           "Configure Batch account quotas for maximum pools, cores per pool, and active jobs to prevent resource exhaustion",
-          "Use low-priority or spot VMs for non-critical workloads to reduce cost impact from quota abuse",
+          "Use Spot VMs for non-critical workloads",
           "Enable Azure Monitor alerts on Batch pool node count and job queue depth to detect abnormal scaling patterns",
           "Configure auto-scale formulas with ceiling limits to prevent unbounded pool growth"
         ],
@@ -2403,13 +2555,13 @@
         "supply-chain-attack": [
           "Use versioned application packages uploaded to the Batch account only from a trusted CI/CD pipeline",
           "Enable Microsoft Defender for Containers to scan container images referenced in task definitions for vulnerabilities",
-          "Restrict container image sources to a private Azure Container Registry with content trust enabled",
+          "Restrict container image sources to a private Azure Container Registry and verify Notation (Notary Project) signatures before use",
           "Validate application package checksums before deployment and audit package version changes"
         ],
         "lateral-movement": [
           "Deploy Batch pools in dedicated VNet subnets with NSG rules restricting outbound traffic to required destinations only",
           "Disable inter-node communication on pools that do not require MPI or multi-instance tasks",
-          "Enable NSG flow logs and Traffic Analytics on pool VNet subnets to detect internal network scanning",
+          "Enable VNet flow logs and Traffic Analytics on pool VNet subnets to detect internal network scanning",
           "Use Azure Firewall to control and monitor egress traffic from Batch pool subnets"
         ],
         "data-exfiltration": [
@@ -2453,10 +2605,10 @@
           "Store all linked service credentials in Azure Key Vault and reference them via Key Vault linked services instead of inline secrets",
           "Use Managed Identity authentication for linked services wherever supported instead of connection strings or service principals",
           "Restrict Self-hosted Integration Runtime access to dedicated machines with endpoint protection and limited network access",
-          "Enable Data Factory diagnostic logging and monitor for linked service credential access and modification events"
+          "Alert on Activity Log writes to linked services and integration runtimes, and on Key Vault secret reads by the factory managed identity"
         ],
         "sensitive-data-exposure": [
-          "Configure Data Factory diagnostic settings to exclude activity input/output data from Azure Monitor logs",
+          "Enable Secure input and Secure output on activities that handle secrets or PII",
           "Restrict debug session access using Azure RBAC and disable data preview capabilities in production Data Factory instances",
           "Use Mapping Data Flow column-level masking and derived column transformations to redact PII during processing",
           "Enable customer-managed key encryption on the Data Factory instance for data at rest protection"
@@ -2505,8 +2657,9 @@
         "data-classification-evasion": [
           "Configure custom sensitive information types in Microsoft Purview to match organization-specific data patterns such as employee IDs and account numbers",
           "Enable auto-labeling policies across Exchange, SharePoint, OneDrive, and Teams with mandatory classification enforcement",
-          "Use Exact Data Match (EDM) classifiers for high-confidence detection of structured sensitive data that encoding cannot evade",
-          "Enforce mandatory labeling via sensitivity label policies so documents cannot be saved without a classification label"
+          "Use Exact Data Match (EDM) classifiers for known values from your own records, such as customer or account numbers",
+          "Enforce mandatory labeling via sensitivity label policies so documents cannot be saved without a classification label",
+          "Review Purview scan results for assets that could not be classified, and treat them as unclassified"
         ],
         "misconfiguration": [
           "Enable Data Loss Prevention policies in enforcement mode rather than audit-only across all Microsoft 365 workloads",
@@ -2575,7 +2728,7 @@
         "unauthorized-access": [
           "Restrict Azure RBAC assignments for Bastion access to specific user groups with Virtual Machine User Login role on target VMs",
           "Configure Conditional Access policies requiring MFA, compliant devices, and trusted network locations for Bastion access",
-          "Disable shareable links or configure short expiration periods with IP-based restrictions when shareable links are required",
+          "Disable shareable links or set a short expiration on each link and restrict create/delete shareable link actions to administrators",
           "Use Entra ID Privileged Identity Management for time-bound Bastion access grants instead of standing permissions"
         ],
         "lateral-movement": [
@@ -2622,7 +2775,7 @@
         "hybrid-infrastructure-attack": [
           "Configure BGP route filters to accept only expected prefixes and reject unauthorized route advertisements",
           "Issue circuit authorization keys only to verified subscriptions and delete unused authorizations to revoke VNet link access",
-          "Implement Network Watcher Connection Monitor to detect unexpected route changes and latency anomalies on the circuit",
+          "Alert on ExpressRoute gateway metrics (count of routes learned from peer, frequency of routes change) and circuit BGP availability to detect unexpected route changes",
           "Use ExpressRoute with Azure Firewall in the hub VNet to inspect and control all traffic traversing the private peering"
         ],
         "network-misconfiguration": [
@@ -2635,11 +2788,11 @@
           "Deploy Azure Firewall or NVA in the hub VNet to inspect and segment all traffic flowing between on-premises and Azure spokes",
           "Configure spoke VNet NSGs to restrict traffic originating from ExpressRoute gateway subnet to required ports and protocols",
           "Use Azure Private Link for PaaS services instead of routing through ExpressRoute Microsoft peering to limit attack surface",
-          "Enable Network Watcher NSG flow logs and traffic analytics to detect lateral movement patterns across the ExpressRoute path"
+          "Enable VNet flow logs and traffic analytics to detect lateral movement patterns across the ExpressRoute path"
         ],
         "data-exfiltration": [
           "Deploy Azure Firewall with IDPS enabled in the hub VNet to inspect egress traffic flowing over ExpressRoute",
-          "Enable Network Watcher NSG flow logs and traffic analytics to monitor data transfer volumes across the ExpressRoute circuit",
+          "Enable VNet flow logs and traffic analytics to monitor data transfer volumes across the ExpressRoute circuit",
           "Configure Azure Monitor alerts for unusual bandwidth utilization spikes on ExpressRoute circuit metrics",
           "Restrict ExpressRoute circuit access to specific VNets using circuit authorization and prevent unauthorized peering"
         ],
@@ -2668,9 +2821,10 @@
         "unpatched-vulnerabilities"
       ],
       "threatContext": {
-        "credential-theft": "Arc agent service principal theft, managed identity token extraction, certificate-based authentication compromise",
+        "credential-theft": "Arc HIMDS identity endpoint (localhost:40342) issues the machine's managed identity tokens to local admins and himds/Hybrid agent extension applications group members, onboarding service principal secrets in scripts, extension settings secrets",
         "remote-command-execution": "Arc-enabled server Run Command abuse, malicious extension deployment, custom script execution",
-        "unpatched-vulnerabilities": "Connected Machine agent CVEs, Arc extension vulnerabilities, outdated agent versions"
+        "unpatched-vulnerabilities": "Connected Machine agent CVEs, Arc extension vulnerabilities, outdated agent versions",
+        "hybrid-infrastructure-attack": "Azure-side Owner/Contributor or Connected Machine Resource Administrator running Run Command or Custom Script Extension as SYSTEM/root on on-premises servers, compromised on-prem server using its managed identity token to pivot into Azure"
       },
       "threatMitigations": {
         "hybrid-infrastructure-attack": [
@@ -2695,7 +2849,7 @@
           "Use Azure Policy guest configuration assignments to enforce OS-level security baselines (CIS, STIG) on Arc-connected machines",
           "Configure Azure Automanage for Arc-enabled servers to enforce consistent configuration across hybrid environments",
           "Enable Microsoft Defender for Cloud security recommendations for Arc-enabled resources and remediate findings",
-          "Use Azure Policy to enforce required extensions (Log Analytics agent, Defender agent) on all Arc-enabled servers"
+          "Use Azure Policy to deploy Azure Monitor Agent and the Defender for Servers extension on all Arc-enabled servers"
         ],
         "unauthorized-access": [
           "Restrict Arc agent registration to specific resource groups using Azure RBAC and service principal scoping",
@@ -2707,7 +2861,7 @@
           "Rotate Arc agent service principal credentials on a regular schedule and store them in Azure Key Vault",
           "Use certificate-based authentication for Arc agents instead of client secrets where supported",
           "Enable Microsoft Defender for Servers credential theft detection on Arc-connected machines",
-          "Restrict IMDS access on Arc-enabled servers using local firewall rules to prevent managed identity token theft from compromised applications"
+          "Restrict membership of the local Hybrid agent extension applications group (Windows) or himds group (Linux)"
         ],
         "remote-command-execution": [
           "Restrict Run Command permissions via Azure RBAC to dedicated operations security groups only",
@@ -2779,14 +2933,14 @@
           "Enable diagnostic logging to Log Analytics and configure alerts for administrative operations and index modifications"
         ],
         "data-exfiltration": [
-          "Restrict search result page sizes using the  parameter limit and implement query rate limiting via API Management",
+          "Cap result page size ($top) in the calling application and rate-limit queries per client through API Management",
           "Configure private endpoints for the search service to prevent data access from outside the virtual network",
           "Enable diagnostic logging and configure Azure Monitor alerts for high-volume query patterns indicating bulk extraction",
           "Use Azure AI Search security trimming filters to ensure users can only retrieve documents they are authorized to access"
         ],
         "excessive-permissions": [
           "Enforce Entra ID RBAC with granular roles (Search Index Data Reader, Search Service Contributor) instead of admin API keys",
-          "Scope query API keys to specific indexes rather than granting access to all indexes on the service",
+          "Grant Search Index Data Reader at individual index scope instead of service-wide query keys",
           "Restrict managed identity permissions on indexer data sources to read-only roles (Storage Blob Data Reader, SQL DB Reader)",
           "Use Azure Policy to audit and prevent overly broad RBAC assignments on search service resources"
         ]
@@ -2809,12 +2963,14 @@
       ],
       "threatContext": {
         "lateral-movement": "Runbook-based access to multiple connected Azure resources, hybrid worker pivoting to on-premises systems",
-        "audit-logging-bypass": "Disabling diagnostic settings, suppressing runbook output, manipulating job logs"
+        "audit-logging-bypass": "Disabling diagnostic settings, suppressing runbook output, manipulating job logs",
+        "remote-command-execution": "Runbook creation or edit by Automation Contributor executes as the account's managed identity and, on Hybrid Runbook Workers, as Local System on Windows or the hweautomation user on Linux unless Hybrid Worker credentials are set; leaked webhook URLs start runbooks without authentication",
+        "credential-theft": "Credential and certificate assets decrypted by any runbook via Get-AutomationPSCredential, managed identity tokens fetched inside the sandbox, secrets written to job output streams, plaintext variables"
       },
       "threatMitigations": {
         "remote-command-execution": [
           "Restrict runbook authoring and publishing permissions via Azure RBAC to designated automation engineers only",
-          "Use Azure Policy to enforce that runbooks must be stored in source control with required approvals before publishing",
+          "Publish runbooks only through Automation source control integration from a reviewed repository branch, and restrict Automation Contributor rights",
           "Configure Automation account webhook URLs with expiration dates and rotate them regularly",
           "Enable Microsoft Sentinel analytics rules to detect unauthorized runbook creation, modification, and execution patterns"
         ],
@@ -2822,7 +2978,7 @@
           "Store all credentials in Azure Automation encrypted credential assets or Azure Key Vault instead of plaintext variables",
           "Use managed identity for Automation account authentication to Azure resources instead of Run As accounts or service principals",
           "Restrict access to Automation account credential assets and variables using Azure RBAC with Automation Operator role separation",
-          "Enable Microsoft Defender for Cloud to detect credential exposure in runbook code and job output streams"
+          "Never write secrets to runbook output or verbose streams, and restrict who can read job streams in the Automation account"
         ],
         "privilege-escalation": [
           "Scope Automation account managed identity RBAC roles to specific resource groups and resources rather than subscription level",
@@ -2838,7 +2994,7 @@
         ],
         "unauthorized-access": [
           "Restrict Automation account access using Azure RBAC with role separation between Automation Operator and Automation Contributor",
-          "Configure webhook authentication with tokens and short expiration periods to prevent unauthorized runbook triggering",
+          "Treat webhook URLs as secrets: store them in Key Vault, set short expiry dates and delete unused webhooks",
           "Enable private endpoints for the Automation account and disable public network access to the management plane",
           "Use Conditional Access policies in Entra ID to restrict Automation account management by location and device compliance"
         ],
@@ -2869,16 +3025,18 @@
         "sensitive-data-exposure",
         "credential-theft",
         "supply-chain-attack",
-        "privilege-escalation"
+        "privilege-escalation",
+        "ssrf-attack"
       ],
       "threatContext": {
         "injection-attack": "Command injection via WebJobs, OS command execution through application vulnerabilities, template injection in application frameworks",
-        "privilege-escalation": "Managed Identity token theft via IMDS enabling Azure resource access, Kudu SCM access escalating to deployment control, slot swap abuse for production access",
-        "misconfiguration": "SCM/Kudu endpoint publicly accessible without authentication, FTP/FTPS credentials enabled, Easy Auth misconfiguration allowing bypass, deployment slots with production connection strings, remote debugging enabled in production, CORS allowing wildcard origins, HTTP allowed instead of HTTPS-only",
+        "privilege-escalation": "Managed Identity token theft from the local IDENTITY_ENDPOINT after code execution, Kudu SCM access escalating to deployment control, slot swap abuse for production access",
+        "misconfiguration": "SCM/Kudu endpoint publicly reachable with basic-auth publishing credentials enabled, FTP/FTPS credentials enabled, Easy Auth misconfiguration allowing bypass, deployment slots with production connection strings, remote debugging enabled in production, CORS allowing wildcard origins, HTTP allowed instead of HTTPS-only",
         "unauthorized-access": "Kudu SCM site access via deployment credentials, stolen publishing profile credentials, Easy Auth token manipulation, hybrid connection endpoint exposure, VNet integration bypass allowing public access",
         "sensitive-data-exposure": "Connection strings in application settings instead of Key Vault references, secrets in environment variables visible via Kudu console, application logs containing credentials, App Service Managed Certificate private key access",
-        "credential-theft": "Managed Identity token theft via IMDS endpoint on the instance, publishing profile XML containing deployment credentials, Kudu API access tokens, SCM basic auth credentials in deployment center",
-        "supply-chain-attack": "Malicious NuGet/npm packages in deployment, compromised GitHub Actions/Azure DevOps deployment pipelines, container image poisoning for containerized App Service, ZIP deploy with tampered artifacts"
+        "credential-theft": "Managed Identity token theft from the local identity endpoint (IDENTITY_ENDPOINT, requires the IDENTITY_HEADER secret from the environment, so plain SSRF fails but RCE, LFI of environment variables or Kudu access succeed), publishing profile XML containing deployment credentials, Kudu API access tokens, SCM basic auth credentials in deployment center",
+        "supply-chain-attack": "Malicious NuGet/npm packages in deployment, compromised GitHub Actions/Azure DevOps deployment pipelines, container image poisoning for containerized App Service, ZIP deploy with tampered artifacts",
+        "ssrf-attack": "SSRF from app code reaching VNet-integrated private endpoints, on-premises hosts via Hybrid Connections and internal services; the managed identity endpoint requires the X-IDENTITY-HEADER secret, so token theft needs header control or a leaked IDENTITY_HEADER"
       },
       "threatMitigations": {
         "injection-attack": [
@@ -2903,16 +3061,16 @@
           "Use Key Vault references in App Service application settings instead of storing secrets directly in configuration",
           "Configure Application Insights telemetry processors to redact sensitive data from request/response logging",
           "Restrict Kudu console access via RBAC and IP restrictions to prevent secrets from being read through environment variables",
-          "Enable customer-managed keys for App Service environment encryption and disable plaintext connection string storage"
+          "Restrict who can read App Service file system logs, Log stream and diagnostic log destinations"
         ],
         "credential-theft": [
           "Use managed identity for App Service authentication to Azure resources instead of connection strings or service principal secrets",
           "Disable publishing profile and FTP credentials, enforcing deployment via CI/CD pipelines with Entra ID authentication",
-          "Restrict IMDS endpoint access from application code by using managed identity SDK libraries with proper scoping",
+          "Never expose IDENTITY_HEADER: restrict Kudu/SCM access and keep environment variables out of logs and error pages",
           "Store all application secrets in Azure Key Vault and reference them via Key Vault references in App Service configuration"
         ],
         "supply-chain-attack": [
-          "Configure deployment from trusted container registries with content trust enabled for containerized App Service",
+          "Deploy containerized App Service only from Azure Container Registry with Defender for Containers scanning and Notation (Notary Project) signature checks in CI/CD",
           "Restrict deployment source to specific GitHub repositories or Azure DevOps pipelines with branch protection policies",
           "Enable Microsoft Defender for App Service to detect deployment of compromised packages and malicious code patterns",
           "Use deployment slots with manual swap approval to validate deployments before promoting to production"
@@ -2921,7 +3079,12 @@
           "Scope App Service managed identity RBAC roles to specific resources rather than resource group or subscription level",
           "Restrict SCM/Kudu access using separate IP restrictions and Entra ID authentication to prevent deployment control escalation",
           "Use deployment slots with separate managed identities and restrict slot swap permissions to designated release managers",
-          "Enable Microsoft Defender for App Service to detect IMDS token theft attempts and unauthorized resource access patterns"
+          "Enable Microsoft Defender for App Service to detect suspicious process execution, web shells and unauthorized resource access patterns"
+        ],
+        "ssrf-attack": [
+          "Validate user-supplied URLs against an allowlist, resolve once and re-check on redirects, and never forward user-controlled headers on outbound requests",
+          "Route all outbound traffic from VNet-integrated apps through Azure Firewall or NSG egress rules that deny internal ranges the app does not need",
+          "Grant the app's managed identity only the RBAC roles it needs"
         ]
       }
     },
@@ -2939,7 +3102,8 @@
         "misconfiguration",
         "sensitive-data-exposure",
         "excessive-permissions",
-        "injection-attack"
+        "injection-attack",
+        "data-lake-governance-bypass"
       ],
       "threatContext": {
         "unauthorized-access": "Workspace access token theft, cluster IAM role abuse, Unity Catalog metastore privilege escalation, SQL warehouse endpoint access without proper authentication, PAT (Personal Access Token) exposure, service principal credential compromise",
@@ -2948,7 +3112,8 @@
         "misconfiguration": "Workspace with public network access enabled, cluster without customer-managed keys, Unity Catalog without proper access controls, DBFS ACLs overly permissive, token permissions too broad, no-isolation shared clusters allowing cross-user access, audit logging disabled",
         "sensitive-data-exposure": "PII in notebook outputs visible to workspace users, query history containing sensitive data, job run results with unmasked data, Delta Lake tables without column-level security, MLflow experiment tracking exposing model parameters",
         "excessive-permissions": "Workspace admin granted too broadly, cluster create permissions allowing resource abuse, Unity Catalog ALL PRIVILEGES on sensitive catalogs, DBFS root access, job run-as permissions with elevated roles",
-        "injection-attack": "SQL injection in SQL warehouses, Spark SQL injection via dynamic query construction, command injection through notebook %sh magic commands, init script manipulation for code execution"
+        "injection-attack": "Command execution via %sh magic and subprocess calls in notebooks, malicious init scripts or libraries on shared compute, Python and Scala UDFs running arbitrary code, job parameters interpolated into code",
+        "data-lake-governance-bypass": "Direct ADLS reads with storage keys, SAS tokens or service principal secrets instead of Unity Catalog tables, legacy DBFS mounts and hive_metastore tables outside Unity Catalog, no-isolation shared compute"
       },
       "threatMitigations": {
         "sql-injection": [
@@ -2973,12 +3138,12 @@
           "Use Databricks Secrets backed by Azure Key Vault instead of storing credentials in DBFS, notebooks, or environment variables",
           "Restrict init script execution to workspace-managed init scripts and disable cluster-scoped init scripts where possible",
           "Configure cluster policies to prevent environment variable injection and enforce secret redaction in notebook outputs",
-          "Enable Microsoft Defender for Cloud to detect credential exposure in Databricks workspace storage and artifacts"
+          "Scan notebooks, repos and job definitions for hardcoded secrets and rotate any PAT or service principal secret found"
         ],
         "misconfiguration": [
           "Deploy Databricks workspace with VNet injection and configure private endpoints to disable public network access",
           "Use Azure Policy to enforce workspace-level settings including customer-managed keys and audit logging enabled",
-          "Configure cluster policies to enforce security settings (single-user access mode, credential passthrough, no public IPs)",
+          "Configure compute policies to enforce dedicated or standard access mode, Unity Catalog-enabled runtimes and no public IPs",
           "Enable Unity Catalog across all workspaces and migrate from legacy table ACLs to centralized governance"
         ],
         "sensitive-data-exposure": [
@@ -2995,9 +3160,15 @@
         ],
         "injection-attack": [
           "Disable %sh magic command execution via cluster policies in shared workspace environments",
-          "Restrict init script sources to workspace-managed locations and enforce script signing for custom init scripts",
+          "Restrict init scripts to Unity Catalog volumes or workspace files and approve them through the Unity Catalog allowlist (MANAGE ALLOWLIST)",
           "Configure cluster isolation mode (single-user or shared with credential isolation) to prevent cross-user code execution",
           "Use parameterized notebook widgets instead of string interpolation for dynamic values in Spark SQL queries"
+        ],
+        "data-lake-governance-bypass": [
+          "Grant ADLS data access only to Unity Catalog storage credentials (Access Connector managed identity) and remove user and service principal RBAC on governed containers",
+          "Disable legacy features (DBFS root and mounts, Hive metastore, no-isolation shared compute) and migrate tables to Unity Catalog",
+          "Apply Unity Catalog row filters and column masks on base tables, and where dynamic views are used, deny users SELECT on the underlying tables",
+          "Alert on ADLS StorageBlobLogs reads by identities other than the Access Connector, and monitor system.access.audit for permission changes on governed catalogs"
         ]
       }
     },
@@ -3016,6 +3187,9 @@
         "sensitive-data-exposure",
         "message-tampering"
       ],
+      "connectionSecurity": {
+        "enforcesEncryption": true
+      },
       "threatContext": {
         "misconfiguration": "Device Provisioning Service (DPS) with overly permissive enrollment groups, IoT Edge modules deployed without signed image enforcement, default file upload storage container with public access, disabled per-device authentication, message routing rules exposing telemetry to unintended endpoints",
         "unauthorized-access": "Device identity spoofing via compromised device registry, unauthorized device enrollment through DPS group enrollment key theft, IoT Edge hub access from rogue downstream devices, direct method invocation on devices without proper authorization policies",
@@ -3023,7 +3197,7 @@
         "data-exfiltration": "Device-to-cloud (D2C) telemetry interception via compromised message routing, bulk device registry export containing device keys, file upload notifications redirected to attacker-controlled storage, IoT Edge module data exfiltration through upstream channel abuse",
         "dos-attack": "Device-to-cloud message quota exhaustion, cloud-to-device (C2D) message flooding targeting specific devices, MQTT/AMQP connection storms from compromised device fleet, twin desired property update storms causing device processing overload, IoT Edge hub message queue saturation",
         "sensitive-data-exposure": "Device twin reported/desired properties containing secrets or PII, D2C telemetry with unencrypted sensitive payloads logged in message routing endpoints, IoT Edge module environment variables with credentials, device provisioning enrollment data exposing fleet metadata",
-        "message-tampering": "Device twin desired property manipulation to alter device behavior, cloud-to-device (C2D) command injection via compromised service credentials, firmware update payload manipulation through file upload notification interception, IoT Edge module-to-module message tampering via compromised edgeHub routing"
+        "message-tampering": "Device twin desired property manipulation to alter device behavior, cloud-to-device (C2D) and direct method command injection via compromised service credentials, tampered firmware deployed through Device Update for IoT Hub, IoT Edge module-to-module message tampering via compromised edgeHub routing"
       },
       "threatMitigations": {
         "misconfiguration": [
@@ -3051,7 +3225,7 @@
           "Use Microsoft Defender for IoT to detect anomalous D2C message volumes and unusual data transfer patterns"
         ],
         "dos-attack": [
-          "Configure per-device throttling limits aligned with IoT Hub tier quotas to prevent single-device quota exhaustion",
+          "Alert on IoT Hub throttling (429) errors and d2c.telemetry.ingress metrics, and size IoT Hub units for peak device load",
           "Enable Microsoft Defender for IoT to detect MQTT/AMQP connection storms and abnormal message rate patterns",
           "Use IoT Hub IP filter rules to block traffic from unexpected source IP ranges",
           "Implement device-side backoff and retry logic with circuit breakers to prevent cascade and self-inflicted quota exhaustion"
